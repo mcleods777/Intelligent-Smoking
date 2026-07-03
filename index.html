@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smoker AI — Intelligent Smoking Journal</title>
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔥</text></svg>">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-flame">🔥</span>
+    <div>
+      <h1>Smoker AI</h1>
+      <p class="tagline">Your intelligent meat-smoking journal</p>
+    </div>
+  </div>
+  <nav id="main-nav">
+    <button class="nav-btn active" data-view="dashboard">📊 Dashboard</button>
+    <button class="nav-btn" data-view="meats">🥩 Meats</button>
+    <button class="nav-btn" data-view="cooks">💨 Smokes</button>
+    <button class="nav-btn" data-view="reviews">⭐ Reviews</button>
+    <button class="nav-btn" data-view="checklist">✅ Checklist</button>
+    <button class="nav-btn" data-view="vendors">🏪 Vendors</button>
+    <button class="nav-btn" data-view="insights">🤖 AI Insights</button>
+    <button class="nav-btn" data-view="settings">⚙️ Settings</button>
+  </nav>
+</header>
+
+<main id="view-container">
+  <!-- Views are rendered here by app.js -->
+</main>
+
+<div id="modal-overlay" class="hidden">
+  <div id="modal" role="dialog" aria-modal="true">
+    <div id="modal-content"></div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
