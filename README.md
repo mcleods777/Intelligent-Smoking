@@ -33,10 +33,14 @@ No build step, no dependencies. Serve the folder with any static server:
 ```bash
 cd Intelligent-Smoking
 python3 -m http.server 8080
+# or, with Node:
+npx http-server -p 8080 -c-1
 # open http://localhost:8080
 ```
 
 (ES modules require http:// — opening index.html directly via file:// won't work in most browsers.)
+
+**After pulling updates:** `http-server` caches files for an hour by default — the `-c-1` flag disables that. Either way, hard-refresh the browser (Ctrl+Shift+R / Cmd+Shift+R) after a `git pull` so it picks up the new JavaScript instead of serving a cached copy.
 
 ## Data & privacy
 
