@@ -231,8 +231,11 @@ export async function askClaude(question) {
       'anthropic-dangerous-direct-browser-access': 'true',
     },
     body: JSON.stringify({
-      model: model || 'claude-sonnet-5',
-      max_tokens: 1200,
+      model: model || 'claude-opus-4-8',
+      // Generous budget: on newer models adaptive thinking is on by default and
+      // thinking tokens count against max_tokens — too small a cap can consume
+      // the whole budget before any visible text is produced.
+      max_tokens: 16000,
       system,
       messages: [{
         role: 'user',
@@ -247,7 +250,17 @@ export async function askClaude(question) {
     throw new Error(`Claude API error (${resp.status}): ${detail || resp.statusText}`);
   }
   const data = await resp.json();
-  return (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
+  if (data.stop_reason === 'refusal') {
+    throw new Error('Claude declined to answer this request. Try rephrasing your question.');
+  }
+  const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+  if (!text) {
+    if (data.stop_reason === 'max_tokens') {
+      throw new Error('The response ran out of tokens before producing an answer. Try a shorter question, or check that the model in Settings is current (e.g. claude-opus-4-8).');
+    }
+    throw new Error(`Claude returned no text (stop_reason: ${data.stop_reason || 'unknown'}). Check the model name in Settings — current models include claude-opus-4-8 and claude-sonnet-5.`);
+  }
+  return text;
 }
 
 // ---------- small utils ----------

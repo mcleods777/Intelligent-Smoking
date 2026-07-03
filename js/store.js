@@ -10,7 +10,7 @@ const emptyDb = () => ({
                   //  startTime, endTime, status, notes}
   reviews: [],    // {id, cookId, reviewer, score, comments, date}
   checklist: [],  // {id, name, status: 'love'|'try'|'tried', notes}
-  settings: { apiKey: '', model: 'claude-sonnet-5', people: [] },
+  settings: { apiKey: '', model: 'claude-opus-4-8', people: [] },
 });
 
 let db = load();

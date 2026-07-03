@@ -734,7 +734,7 @@ function renderSettings() {
         <p class="muted mb">Optional: add an <a href="https://console.anthropic.com/" target="_blank" rel="noopener" style="color:var(--gold)">Anthropic API key</a> to ask Claude questions grounded in your journal. Stored only in this browser's localStorage and never included in exports.</p>
         <form class="form" id="ai-form">
           <label class="field">API key <input name="apiKey" type="password" placeholder="sk-ant-…" value="${esc(s.apiKey || '')}"></label>
-          <label class="field">Model <input name="model" value="${esc(s.model || 'claude-sonnet-5')}"></label>
+          <label class="field">Model <input name="model" value="${esc(s.model || 'claude-opus-4-8')}"></label>
           <div class="form-actions"><button class="btn small">Save</button></div>
         </form>
       </div>
@@ -763,7 +763,7 @@ function renderSettings() {
   $('#ai-form').onsubmit = e => {
     e.preventDefault();
     const f = Object.fromEntries(new FormData(e.target));
-    Settings.update({ apiKey: f.apiKey.trim(), model: f.model.trim() || 'claude-sonnet-5' });
+    Settings.update({ apiKey: f.apiKey.trim(), model: f.model.trim() || 'claude-opus-4-8' });
     toast('AI settings saved', 'good'); render();
   };
 
