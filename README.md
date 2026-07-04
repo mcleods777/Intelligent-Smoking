@@ -19,6 +19,9 @@ Everyone at the table scores each smoke out of 10 with comments. The app compute
 ### ✅ Meat Checklist
 Three lists — **Meats We Love**, **Want to Try**, and **Tried** — with one-click moves between them.
 
+### 📚 Cut Library
+A prepopulated, photo-backed catalog of 30+ classic smoking cuts across beef, pork, poultry, lamb, fish, and game. Each card shows a photo of the cut, difficulty, recommended method, pit temp, target internal temp, typical cook time, and a pitmaster tip — with a one-click **Want to Try** button that adds it to your checklist (pre-filled with the cooking targets). Photos are stored locally (`assets/cuts/`, sourced from Wikimedia Commons — see `assets/cuts/ATTRIBUTIONS.md`), so the library works offline.
+
 ### 🏪 Vendor Economics
 Track every store and butcher. Per vendor the app computes purchase count, total spent, average $/lb, average meat quality, and a **Value Index** (quality ÷ $/lb) so you can shop where quality per dollar is best.
 
@@ -54,7 +57,9 @@ npx http-server -p 8080 -c-1
 index.html      app shell and navigation
 styles.css      smoky BBQ theme
 js/store.js     data layer (localStorage), export/import, demo data
-js/app.js       all views: dashboard, meats, smokes, reviews, checklist, vendors, insights, settings
+js/app.js       all views: dashboard, meats, smokes, reviews, checklist, cut library, vendors, insights, settings
+js/cuts.js      prepopulated cut catalog (30+ cuts with smoking guidance)
 js/charts.js    dependency-free canvas temperature chart (multi-probe + action markers)
 js/ai.js        local analytics engine + optional Claude API integration
+assets/cuts/    cut photos (Wikimedia Commons, see ATTRIBUTIONS.md)
 ```

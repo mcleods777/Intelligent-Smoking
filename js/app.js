@@ -6,12 +6,13 @@ import {
 } from './store.js';
 import { drawTempChart } from './charts.js';
 import { computeInsights, analyzeCook, askClaude, hasApiKey } from './ai.js';
+import { CUT_CATALOG, CUT_ANIMALS } from './cuts.js';
 
 // ---------- tiny helpers ----------
 const $ = sel => document.querySelector(sel);
 const container = $('#view-container');
 
-const state = { view: 'dashboard', cookId: null };
+const state = { view: 'dashboard', cookId: null, cutFilter: 'All' };
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -77,6 +78,7 @@ function render() {
     cooks: renderCooks,
     reviews: renderReviews,
     checklist: renderChecklist,
+    cutlibrary: renderCutLibrary,
     vendors: renderVendors,
     insights: renderInsights,
     settings: renderSettings,
@@ -551,7 +553,10 @@ function renderChecklist() {
   container.innerHTML = `
     <div class="view-header">
       <div><h2>Meat Checklist</h2><p class="sub">What we love, what we've tried, and what's next on the smoker</p></div>
-      <button class="btn" id="add-item">＋ Add to list</button>
+      <div class="flex">
+        <button class="btn secondary" id="browse-cuts">📚 Browse Cut Library</button>
+        <button class="btn" id="add-item">＋ Add to list</button>
+      </div>
     </div>
     <div class="grid cols-3">
       <div class="card"><h3>❤️ Meats We Love (${loved.length})</h3>${list(loved, 'Nothing here yet — promote your favorites.')}</div>
@@ -591,6 +596,74 @@ function renderChecklist() {
     Checklist.update(id, { status }); render();
   });
   container.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { Checklist.remove(b.dataset.del); render(); });
+  $('#browse-cuts').onclick = () => { state.view = 'cutlibrary'; render(); };
+}
+
+// ================= CUT LIBRARY =================
+function checklistEntryFor(cutName) {
+  const target = cutName.trim().toLowerCase();
+  return Checklist.all().find(i => i.name.trim().toLowerCase() === target) || null;
+}
+
+function renderCutLibrary() {
+  const filters = ['All', ...CUT_ANIMALS];
+  const cuts = state.cutFilter === 'All'
+    ? CUT_CATALOG
+    : CUT_CATALOG.filter(c => c.animal === state.cutFilter);
+  const statusLabel = { love: '❤️ On your "We Love" list', try: '🎯 On your "Want to Try" list', tried: '✅ Already tried' };
+
+  container.innerHTML = `
+    <div class="view-header">
+      <div><h2>📚 Cut Library</h2><p class="sub">${CUT_CATALOG.length} classic smoking cuts across every animal — tap one onto your want-to-try list</p></div>
+    </div>
+    <div class="filter-chips">
+      ${filters.map(f => `<button class="filter-chip ${state.cutFilter === f ? 'active' : ''}" data-filter="${esc(f)}">${esc(f)}${f !== 'All' ? ` (${CUT_CATALOG.filter(c => c.animal === f).length})` : ''}</button>`).join('')}
+    </div>
+    <div class="cut-grid">
+      ${cuts.map(c => {
+        const entry = checklistEntryFor(c.name);
+        return `
+        <div class="cut-card">
+          <div class="cut-photo">
+            <img src="assets/cuts/${c.id}.jpg" alt="${esc(c.name)}" loading="lazy"
+                 onerror="this.parentElement.insertAdjacentHTML('afterbegin', '<span class=&quot;cut-emoji-fallback&quot;>${c.emoji}</span>'); this.remove()">
+            <span class="cut-animal-tag">${esc(c.animal)}</span>
+          </div>
+          <div class="cut-body">
+            <div class="flex spread">
+              <h4>${esc(c.name)}</h4>
+              <span class="diff-pill diff-${c.difficulty}">${c.difficulty}</span>
+            </div>
+            <div class="cut-stats">
+              <span class="cut-stat">🔥 <strong>${c.pitTemp}°F</strong> pit</span>
+              <span class="cut-stat">🌡️ <strong>${c.internalTemp}°F</strong> internal</span>
+              <span class="cut-stat">⏱️ <strong>${esc(c.time)}</strong></span>
+              <span class="cut-stat">${esc(c.method)}</span>
+            </div>
+            <p class="cut-blurb">${esc(c.blurb)}</p>
+            ${entry
+              ? `<div class="on-list-note">${statusLabel[entry.status] || '✓ On your checklist'}</div>`
+              : `<div class="cut-actions"><button class="btn small" data-try="${c.id}">🎯 Want to try</button></div>`}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+
+  container.querySelectorAll('[data-filter]').forEach(b => b.onclick = () => {
+    state.cutFilter = b.dataset.filter;
+    render();
+  });
+  container.querySelectorAll('[data-try]').forEach(b => b.onclick = () => {
+    const cut = CUT_CATALOG.find(c => c.id === b.dataset.try);
+    if (!cut || checklistEntryFor(cut.name)) return;
+    Checklist.add({
+      name: cut.name,
+      status: 'try',
+      notes: `${cut.method} · ${cut.pitTemp}°F pit → ${cut.internalTemp}°F internal · ${cut.time}`,
+    });
+    toast(`${cut.name} added to Want to Try 🎯`, 'good');
+    render();
+  });
 }
 
 // ================= VENDORS =================
