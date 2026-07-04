@@ -28,6 +28,30 @@ Your recipe book: rubs, sauces, marinades, brines, glazes, and injections — ea
 ### 📷 AI Label Scanning
 When adding a meat, snap or upload a photo of the package label and Claude reads it — filling in the name, cut, type, grade, weight, and price automatically (it even computes the total from price-per-pound when needed). Requires an Anthropic API key in Settings.
 
+### ⏰ Cook Reminders
+Set "spritz every 45 minutes" or one-time "check the wrap" alarms on an active smoke — they fire as in-app toasts and browser notifications while the app is open, and can be paused/resumed per reminder.
+
+### 🌤️ Weather Logging
+Each smoke can record outside temp, wind, humidity, and conditions — with one-click auto-fill from your location (via the free open-meteo.com API). The AI compares cold-weather vs warm-weather results.
+
+### 📸 Photo Journal
+Attach bark shots, smoke rings, and plated results to every cook. Photos are compressed and stored in the browser's IndexedDB (they don't count against localStorage and aren't included in JSON exports). The first photo also stars on the smoke's share card.
+
+### 🧮 Cost per Serving
+Log how many people you fed and your pellet price (Settings → Cost Defaults) and every cook shows its true cost — meat + pellets — per plate, with an insight tracking your most economical smokes.
+
+### 🌳 Wood Pairing Guide
+A reference of 10 smoke woods (post oak, hickory, cherry, alder, …) with strength ratings, flavor notes, and what each pairs with — plus *your own* average score next to any wood you've actually burned, matched from your pellet logs.
+
+### 🗓️ Cook Planner
+Pick a cut, weight, and serving time — the planner works backward through rest, cook hours, fire-up, seasoning/dry-brine, and thaw dates, then saves the whole schedule as a planned smoke.
+
+### 📤 Shareable Cook Cards
+One click renders a smoke into a polished PNG — meat, date, method and pellet chips, crew score, photo, and the full temperature chart — ready to text to the crew.
+
+### 📥 Thermometer CSV Import
+Import CSV exports from Meater, Fireboard, ThermoWorks, or any logger. The first column is time (ISO, epoch, or elapsed), and each temperature column becomes its own probe automatically.
+
 ### 🏪 Vendor Economics
 Track every store and butcher. Per vendor the app computes purchase count, total spent, average $/lb, average meat quality, and a **Value Index** (quality ÷ $/lb) so you can shop where quality per dollar is best.
 
@@ -64,8 +88,11 @@ index.html      app shell and navigation
 styles.css      smoky BBQ theme
 js/store.js     data layer (localStorage), export/import, demo data
 js/app.js       all views: dashboard, meats, smokes, reviews, checklist, cut library, vendors, insights, settings
-js/cuts.js      prepopulated cut catalog (30+ cuts with smoking guidance)
+js/cuts.js      prepopulated cut catalog (45 cuts with smoking guidance)
+js/woods.js     wood & pellet pairing guide data
 js/charts.js    dependency-free canvas temperature chart (multi-probe + action markers)
 js/ai.js        local analytics engine + optional Claude API integration
+js/photos.js    photo journal storage (IndexedDB) + compression
+js/share.js     shareable cook-card renderer (canvas -> PNG)
 assets/cuts/    cut photos (Wikimedia Commons, see ATTRIBUTIONS.md)
 ```

@@ -191,6 +191,16 @@ canvas.temp-chart { width: 100%; height: 280px; display: block; }
 .recipe-check input { width: auto; }
 .ingredient-row { align-items: end; grid-template-columns: 130px 1fr auto; }
 
+/* ---- Photo journal ---- */
+.photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: .5rem; }
+.photo-item { position: relative; margin: 0; }
+.photo-item img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); cursor: pointer; display: block; }
+.photo-item figcaption { font-size: .68rem; color: var(--text-dim); padding: .15rem .1rem 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.photo-item .photo-del { position: absolute; top: 4px; right: 4px; background: rgba(20,14,9,.75); }
+
+/* ---- Wood guide ---- */
+.strength-dots { color: var(--ember-2); letter-spacing: 2px; font-size: .8rem; }
+
 /* ---- Label scan ---- */
 .scan-box {
   display: flex; align-items: center; gap: .7rem; flex-wrap: wrap;

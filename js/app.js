@@ -7,6 +7,10 @@ import {
 import { drawTempChart } from './charts.js';
 import { computeInsights, analyzeCook, askClaude, hasApiKey, scanMeatLabel } from './ai.js';
 import { CUT_CATALOG, CUT_ANIMALS } from './cuts.js';
+import { WOOD_GUIDE } from './woods.js';
+import { compressPhoto, savePhoto, getPhotos, deletePhoto } from './photos.js';
+import { renderShareCard } from './share.js';
+import { uid } from './store.js';
 
 // ---------- tiny helpers ----------
 const $ = sel => document.querySelector(sel);
@@ -56,6 +60,39 @@ const GRADES = ['Prime', 'Choice', 'Select', 'Wagyu', 'Organic', 'Heritage', 'N/
 const METHODS = ['Low & Slow', 'Hot & Fast', 'Reverse Sear', 'Smoke + Braise', '3-2-1', 'Cold Smoke', 'Other'];
 const ACTION_TYPES = ['💦 Spritz', '📦 Wrap', '🔄 Flip/Rotate', '🌡️ Temp Change', '🧂 Season', '🔥 Fire', '🥩 Meat On', '🛌 Rest', '🍽️ Pulled Off', '📝 Note'];
 const PROBE_COLORS = ['#ff6b35', '#7cb342', '#42a5f5', '#f4b942', '#ab47bc', '#26c6da', '#ef5350', '#8d99ae'];
+
+// ---------- reminder engine ----------
+// Checks active cooks' reminders every 15s while the app is open.
+// Fires a toast and (if permitted) a browser notification.
+function checkReminders() {
+  const now = Date.now();
+  for (const cook of Cooks.all()) {
+    if (cook.status !== 'active' || !cook.reminders?.length) continue;
+    let changed = false;
+    for (const r of cook.reminders) {
+      if (!r.enabled || !r.nextDue || r.nextDue > now) continue;
+      const meatName = Meats.get(cook.meatId)?.name || 'your smoke';
+      toast(`⏰ ${r.label} — ${meatName}`, 'good');
+      if ('Notification' in window && Notification.permission === 'granted') {
+        try { new Notification('🔥 Smoker AI', { body: `${r.label} — ${meatName}` }); } catch { /* ignore */ }
+      }
+      if (r.once) r.enabled = false;
+      else r.nextDue = now + r.intervalMin * 60e3;
+      changed = true;
+    }
+    if (changed) {
+      Cooks.update(cook.id, { reminders: cook.reminders });
+      if (state.view === 'cooks' && state.cookId === cook.id) render();
+    }
+  }
+}
+setInterval(checkReminders, 15000);
+
+function requestNotifyPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
 
 // ---------- navigation ----------
 document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -285,7 +322,10 @@ function renderCooks() {
   container.innerHTML = `
     <div class="view-header">
       <div><h2>Smoke Sessions</h2><p class="sub">Method, pellets, temperature curves, and every action along the way</p></div>
-      <button class="btn" id="add-cook">💨 New Smoke</button>
+      <div class="flex">
+        <button class="btn secondary" id="plan-cook">🗓️ Plan a Cook</button>
+        <button class="btn" id="add-cook">💨 New Smoke</button>
+      </div>
     </div>
     ${cooks.length ? `<div class="table-wrap"><table>
       <thead><tr><th>Meat</th><th>Date</th><th>Method</th><th>Pellets</th><th>Duration</th><th>Probes</th><th>Score</th><th>Status</th><th></th></tr></thead>
@@ -309,6 +349,7 @@ function renderCooks() {
     : '<div class="empty">No smoke sessions yet. Start one to track temps, pellets, and actions in real time.</div>'}`;
 
   $('#add-cook').onclick = () => openCookForm();
+  $('#plan-cook').onclick = () => openPlannerModal();
   bindOpenCookButtons();
   container.querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
     if (confirm('Delete this smoke session and its reviews?')) { Cooks.remove(b.dataset.del); toast('Smoke deleted'); render(); }
@@ -354,6 +395,18 @@ function openCookForm(cook = null) {
       <div class="form-row">
         <label class="field">Target grill temp (°F) <input name="targetGrillTemp" type="number" min="0" value="${cook?.targetGrillTemp ?? 250}"></label>
         <label class="field">Target internal temp (°F) <input name="targetInternalTemp" type="number" min="0" value="${cook?.targetInternalTemp ?? 203}"></label>
+        <label class="field">Serving how many? <input name="servings" type="number" min="1" step="1" placeholder="e.g. 8" value="${cook?.servings ?? ''}"></label>
+      </div>
+      <div class="form-row" style="align-items:end">
+        <label class="field">Outside temp (°F) <input name="weatherTempF" type="number" step="1" value="${cook?.weather?.tempF ?? ''}"></label>
+        <label class="field">Wind (mph) <input name="weatherWindMph" type="number" step="1" min="0" value="${cook?.weather?.windMph ?? ''}"></label>
+        <label class="field">Humidity (%) <input name="weatherHumidity" type="number" step="1" min="0" max="100" value="${cook?.weather?.humidity ?? ''}"></label>
+        <label class="field">Conditions
+          <select name="weatherConditions">
+            ${['', 'Sunny', 'Partly cloudy', 'Cloudy', 'Rain', 'Snow', 'Windy', 'Fog'].map(c => `<option ${cook?.weather?.conditions === c ? 'selected' : ''}>${c}</option>`).join('')}
+          </select>
+        </label>
+        <button type="button" class="btn small secondary" id="fetch-weather" title="Uses your location and open-meteo.com">🌤️ Auto-fill weather</button>
       </div>
       <label class="field">Notes <textarea name="notes">${esc(cook?.notes || '')}</textarea></label>
       <div class="form-actions">
@@ -362,6 +415,36 @@ function openCookForm(cook = null) {
       </div>
     </form>`);
   $('#cancel-modal').onclick = closeModal;
+  $('#fetch-weather').onclick = () => {
+    const btn = $('#fetch-weather');
+    if (!navigator.geolocation) { toast('Geolocation not available in this browser', 'bad'); return; }
+    btn.disabled = true; btn.textContent = '⏳ Locating…';
+    navigator.geolocation.getCurrentPosition(async pos => {
+      try {
+        const { latitude, longitude } = pos.coords;
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}`
+          + '&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code'
+          + '&temperature_unit=fahrenheit&wind_speed_unit=mph';
+        const cur = (await (await fetch(url)).json()).current;
+        const form = $('#cook-form');
+        form.weatherTempF.value = Math.round(cur.temperature_2m);
+        form.weatherWindMph.value = Math.round(cur.wind_speed_10m);
+        form.weatherHumidity.value = Math.round(cur.relative_humidity_2m);
+        const code = cur.weather_code;
+        form.weatherConditions.value =
+          code === 0 ? 'Sunny' : code <= 2 ? 'Partly cloudy' : code === 3 ? 'Cloudy'
+          : (code >= 45 && code <= 48) ? 'Fog' : (code >= 71 && code <= 77) ? 'Snow'
+          : (code >= 51 && code <= 99) ? 'Rain' : 'Cloudy';
+        btn.textContent = '✅ Weather filled';
+      } catch {
+        toast('Could not fetch weather — fill it in manually', 'bad');
+        btn.textContent = '🌤️ Auto-fill weather'; btn.disabled = false;
+      }
+    }, () => {
+      toast('Location permission denied — fill weather in manually', 'bad');
+      btn.textContent = '🌤️ Auto-fill weather'; btn.disabled = false;
+    }, { timeout: 10000 });
+  };
   $('#cook-form').onsubmit = e => {
     e.preventDefault();
     const f = Object.fromEntries(new FormData(e.target));
@@ -370,8 +453,16 @@ function openCookForm(cook = null) {
       pelletLbs: num(f.pelletLbs),
       targetGrillTemp: num(f.targetGrillTemp),
       targetInternalTemp: num(f.targetInternalTemp),
+      servings: num(f.servings),
+      weather: {
+        tempF: num(f.weatherTempF),
+        windMph: num(f.weatherWindMph),
+        humidity: num(f.weatherHumidity),
+        conditions: f.weatherConditions || '',
+      },
       recipeIds: [...e.target.querySelectorAll('[name="recipeIds"]:checked')].map(cb => cb.value),
     };
+    delete data.weatherTempF; delete data.weatherWindMph; delete data.weatherHumidity; delete data.weatherConditions;
     if (cook) {
       Cooks.update(cook.id, data);
       toast('Smoke updated', 'good');
@@ -387,6 +478,109 @@ function openCookForm(cook = null) {
       toast('Smoke session created — probes ready', 'good');
     }
     closeModal(); state.view = 'cooks'; render();
+  };
+}
+
+// ---- Cook Planner: work backward from serving time ----
+function parseCookHours(timeStr) {
+  // "12–18 hrs" -> 15, "~1 hr" -> 1, "20–30 min" -> 0.42, "1.5–2 hrs" -> 1.75
+  const nums = (timeStr.match(/[\d.]+/g) || []).map(Number);
+  if (!nums.length) return null;
+  const mid = nums.reduce((s, n) => s + n, 0) / nums.length;
+  return /min/i.test(timeStr) ? mid / 60 : mid;
+}
+
+function openPlannerModal() {
+  const inventory = Meats.all().filter(m => m.status === 'inventory');
+  const defaultServe = new Date(Date.now() + 24 * 3600e3);
+  defaultServe.setHours(18, 0, 0, 0);
+  openModal(`
+    <h3>🗓️ Plan a Cook</h3>
+    <p class="muted mb">Pick what and when you're serving — the planner works backward to tell you when to thaw, season, fire up, wrap, and rest.</p>
+    <form class="form" id="planner-form">
+      <div class="form-row">
+        <label class="field">Cut
+          <select name="cutId">
+            ${CUT_CATALOG.map(c => `<option value="${c.id}">${esc(c.name)} (${esc(c.time)})</option>`).join('')}
+            <option value="custom">Custom…</option>
+          </select>
+        </label>
+        <label class="field">Weight (lbs) <input name="weightLbs" type="number" step="0.5" min="0.5" value="10"></label>
+        <label class="field" id="custom-hours-field" style="display:none">Cook hours <input name="customHours" type="number" step="0.5" min="0.5" value="8"></label>
+      </div>
+      <div class="form-row">
+        <label class="field">Serving at <input name="serveAt" type="datetime-local" value="${localDatetime(defaultServe.getTime())}"></label>
+        ${inventory.length ? `
+        <label class="field">Link a meat from inventory (optional)
+          <select name="meatId"><option value="">— none —</option>
+            ${inventory.map(m => `<option value="${m.id}">${esc(m.name)} (${m.weightLbs || '?'} lbs)</option>`).join('')}
+          </select>
+        </label>` : ''}
+      </div>
+      <div class="form-actions"><button class="btn">Build schedule</button></div>
+    </form>
+    <div id="planner-result"></div>`);
+
+  const form = $('#planner-form');
+  form.cutId.onchange = () => {
+    $('#custom-hours-field').style.display = form.cutId.value === 'custom' ? '' : 'none';
+  };
+  form.onsubmit = e => {
+    e.preventDefault();
+    const cut = CUT_CATALOG.find(c => c.id === form.cutId.value);
+    const weight = Number(form.weightLbs.value) || 10;
+    const serveAt = new Date(form.serveAt.value).getTime();
+    if (!serveAt) { toast('Pick a serving time', 'bad'); return; }
+    const hours = cut ? parseCookHours(cut.time) : Number(form.customHours.value);
+    if (!hours) { toast('Could not determine cook time', 'bad'); return; }
+
+    const restMin = hours >= 6 ? 60 : 30;
+    const restStart = serveAt - restMin * 60e3;
+    const meatOn = restStart - hours * 3600e3;
+    const fireUp = meatOn - 45 * 60e3;
+    const season = hours >= 8 ? meatOn - 12 * 3600e3 : meatOn - 60 * 60e3;
+    const thawDays = Math.ceil(weight / 5);
+    const thawStart = meatOn - thawDays * 24 * 3600e3;
+
+    const fmtSched = ts => new Date(ts).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    const steps = [
+      { t: thawStart, icon: '🧊', label: `Move to fridge to thaw (~${thawDays} day${thawDays > 1 ? 's' : ''} for ${weight} lbs — skip if fresh)` },
+      { t: season, icon: '🧂', label: hours >= 8 ? 'Trim & season (overnight dry brine recommended)' : 'Trim & season' },
+      { t: fireUp, icon: '🔥', label: `Fire up the smoker${cut ? ` — target ${cut.pitTemp}°F` : ''}` },
+      { t: meatOn, icon: '🥩', label: 'Meat on!' },
+      ...(hours >= 6 ? [{ t: meatOn + hours * 3600e3 * 0.55, icon: '📦', label: 'Expect the stall — wrap window (~165°F internal)' }] : []),
+      { t: restStart, icon: '🛌', label: `Pull${cut ? ` at ${cut.internalTemp}°F internal` : ''} & rest ${restMin} min (wrapped, in a cooler)` },
+      { t: serveAt, icon: '🍽️', label: 'Serve & accept the applause' },
+    ].sort((a, b) => a.t - b.t);
+
+    const scheduleText = steps.map(s => `${fmtSched(s.t)} — ${s.icon} ${s.label}`).join('\n');
+    $('#planner-result').innerHTML = `
+      <hr class="sep">
+      <h3 style="color:var(--gold)">Your schedule${cut ? ` — ${esc(cut.name)}` : ''}</h3>
+      <ul class="timeline" style="max-height:none">
+        ${steps.map(s => `<li><span class="t-time">${fmtSched(s.t)}</span><span class="t-type">${s.icon}</span><span>${esc(s.label)}</span></li>`).join('')}
+      </ul>
+      <div class="form-actions mt">
+        <button class="btn" id="save-plan">💾 Save as planned smoke</button>
+      </div>`;
+    $('#save-plan').onclick = () => {
+      const meatId = form.meatId?.value || '';
+      const created = Cooks.add({
+        meatId, date: new Date(meatOn).toISOString().slice(0, 10),
+        method: cut?.method || 'Low & Slow',
+        pelletBrand: '', pelletFlavor: '', pelletLbs: null,
+        targetGrillTemp: cut?.pitTemp ?? 250, targetInternalTemp: cut?.internalTemp ?? 203,
+        probes: [], readings: [], actions: [], reminders: [], recipeIds: [], photoIds: [],
+        startTime: null, endTime: null, status: 'planned',
+        notes: `📋 PLAN — ${cut?.name || 'Custom cook'} (${weight} lbs)\n${scheduleText}`,
+      });
+      Cooks.addProbe(created.id, 'Grill Temp', PROBE_COLORS[0]);
+      Cooks.addProbe(created.id, 'Meat Probe 1', PROBE_COLORS[1]);
+      closeModal();
+      state.view = 'cooks'; state.cookId = created.id;
+      toast('Planned smoke created 🗓️', 'good');
+      render();
+    };
   };
 }
 
@@ -408,10 +602,13 @@ function renderCookDetail(cookId) {
       <div class="flex">
         <button class="btn secondary small" id="back-cooks">← All smokes</button>
         <button class="btn secondary small" id="edit-cook">Edit details</button>
+        <button class="btn secondary small" id="share-cook">📤 Share card</button>
         ${cook.status === 'planned' ? '<button class="btn small" id="start-cook">🔥 Start Smoke</button>' : ''}
         ${cook.status === 'active' ? '<button class="btn small" id="finish-cook">🏁 Finish Smoke</button>' : ''}
       </div>
     </div>
+    ${cook.weather && (cook.weather.tempF != null || cook.weather.conditions) ? `
+      <p class="muted" style="margin:-.6rem 0 .9rem">🌤️ ${esc([cook.weather.conditions, cook.weather.tempF != null ? cook.weather.tempF + '°F' : null, cook.weather.windMph != null ? cook.weather.windMph + ' mph wind' : null, cook.weather.humidity != null ? cook.weather.humidity + '% humidity' : null].filter(Boolean).join(' · '))}</p>` : ''}
 
     <div class="grid cols-2 mb">
       <div class="card">
@@ -432,7 +629,11 @@ function renderCookDetail(cookId) {
             <label class="field">Temp (°F) <input name="temp" type="number" step="1" required placeholder="e.g. 250"></label>
             <label class="field">Time <input name="time" type="datetime-local" value="${localDatetime(Date.now())}"></label>
           </div>
-          <div class="form-actions"><button class="btn small" ${cook.probes?.length ? '' : 'disabled'}>Log reading</button></div>
+          <div class="form-actions">
+            <button type="button" class="btn small secondary" id="import-csv-btn" title="Import a CSV export from a Meater, Fireboard, ThermoWorks or similar thermometer">📥 Import thermometer CSV</button>
+            <input type="file" id="import-csv-file" accept=".csv,text/csv" style="display:none">
+            <button class="btn small" ${cook.probes?.length ? '' : 'disabled'}>Log reading</button>
+          </div>
         </form>
       </div>
 
@@ -455,6 +656,40 @@ function renderCookDetail(cookId) {
               <button class="btn small ghost" data-del-action="${a.ts}">✕</button></li>`).join('')
             || '<li class="muted" style="border:none;background:none">No actions logged yet.</li>'}
         </ul>
+      </div>
+    </div>
+
+    <div class="grid cols-2 mb">
+      <div class="card">
+        <h3>⏰ Reminders ${cook.status === 'active' ? '' : '<span class="muted">(fire while the smoke is active)</span>'}</h3>
+        <ul class="timeline" style="max-height:180px">
+          ${(cook.reminders || []).map(r => `
+            <li>
+              <span class="t-type">${r.enabled ? '🔔' : '🔕'}</span>
+              <span style="flex:1">${esc(r.label)} <span class="muted">${r.once ? 'once' : `every ${r.intervalMin} min`}${r.enabled && r.nextDue ? ` · next ${fmtTime(r.nextDue)}` : ''}</span></span>
+              <button class="btn small ghost" data-toggle-reminder="${r.id}">${r.enabled ? 'Pause' : 'Resume'}</button>
+              <button class="btn small ghost" data-del-reminder="${r.id}">✕</button>
+            </li>`).join('') || '<li class="muted" style="border:none;background:none">No reminders — add "spritz every 45 min" or "check wrap in 2 hours". They fire as notifications while the app is open.</li>'}
+        </ul>
+        <form class="form" id="reminder-form" style="margin-top:.5rem">
+          <div class="form-row" style="align-items:end">
+            <label class="field">Reminder <input name="label" required placeholder="💦 Spritz the brisket"></label>
+            <label class="field">Every / in (min) <input name="intervalMin" type="number" min="1" step="1" value="45" required></label>
+            <label class="field" style="flex:0 0 auto"><span>&nbsp;</span>
+              <select name="mode"><option value="repeat">repeating</option><option value="once">one-time</option></select>
+            </label>
+            <button class="btn small" style="align-self:end">Add</button>
+          </div>
+        </form>
+      </div>
+      <div class="card">
+        <h3>📸 Photo Journal <span class="muted" id="photo-count"></span></h3>
+        <div class="photo-grid" id="photo-grid"><span class="muted">Loading…</span></div>
+        <div class="flex mt">
+          <button class="btn small secondary" id="add-photo-btn">📷 Add photo</button>
+          <input type="file" id="add-photo-file" accept="image/*" capture="environment" style="display:none">
+          <span class="muted" style="font-size:.75rem">Bark shots, smoke rings, plated glory — stored on this device.</span>
+        </div>
       </div>
     </div>
 
@@ -548,6 +783,159 @@ function renderCookDetail(cookId) {
   container.querySelectorAll('[data-del-review]').forEach(b => b.onclick = () => {
     Reviews.remove(b.dataset.delReview); render();
   });
+
+  // ---- reminders ----
+  $('#reminder-form').onsubmit = e => {
+    e.preventDefault();
+    const f = Object.fromEntries(new FormData(e.target));
+    const intervalMin = Math.max(1, Number(f.intervalMin));
+    const reminders = [...(cook.reminders || []), {
+      id: uid(), label: f.label.trim(), intervalMin,
+      once: f.mode === 'once', enabled: true, nextDue: Date.now() + intervalMin * 60e3,
+    }];
+    Cooks.update(cook.id, { reminders });
+    requestNotifyPermission();
+    toast('Reminder set ⏰', 'good'); render();
+  };
+  container.querySelectorAll('[data-toggle-reminder]').forEach(b => b.onclick = () => {
+    const r = (cook.reminders || []).find(x => x.id === b.dataset.toggleReminder);
+    if (r) {
+      r.enabled = !r.enabled;
+      if (r.enabled) r.nextDue = Date.now() + r.intervalMin * 60e3;
+      Cooks.update(cook.id, { reminders: cook.reminders });
+      render();
+    }
+  });
+  container.querySelectorAll('[data-del-reminder]').forEach(b => b.onclick = () => {
+    Cooks.update(cook.id, { reminders: (cook.reminders || []).filter(x => x.id !== b.dataset.delReminder) });
+    render();
+  });
+
+  // ---- photo journal ----
+  const photoGrid = $('#photo-grid');
+  const renderPhotos = async () => {
+    const photos = await getPhotos(cook.photoIds || []);
+    $('#photo-count').textContent = photos.length ? `(${photos.length})` : '';
+    photoGrid.innerHTML = photos.length ? photos.map(p => `
+      <figure class="photo-item">
+        <img src="${p.dataUrl}" alt="cook photo" data-view-photo="${p.id}">
+        <figcaption>${esc(p.caption || '')}</figcaption>
+        <button class="btn small ghost photo-del" data-del-photo="${p.id}">✕</button>
+      </figure>`).join('') : '<span class="muted">No photos yet.</span>';
+    photoGrid.querySelectorAll('[data-del-photo]').forEach(b => b.onclick = async () => {
+      await deletePhoto(b.dataset.delPhoto);
+      Cooks.update(cook.id, { photoIds: (cook.photoIds || []).filter(id => id !== b.dataset.delPhoto) });
+      renderPhotos();
+    });
+    photoGrid.querySelectorAll('[data-view-photo]').forEach(img => img.onclick = () => {
+      openModal(`<img src="${img.src}" style="max-width:100%;border-radius:10px">`);
+    });
+  };
+  renderPhotos();
+  $('#add-photo-btn').onclick = () => $('#add-photo-file').click();
+  $('#add-photo-file').onchange = async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const dataUrl = await compressPhoto(file);
+      const caption = prompt('Caption (optional):') || '';
+      const id = uid();
+      await savePhoto(id, dataUrl, caption);
+      Cooks.update(cook.id, { photoIds: [...(cook.photoIds || []), id] });
+      toast('Photo added 📸', 'good');
+      renderPhotos();
+    } catch (err) {
+      toast(err.message, 'bad');
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  // ---- thermometer CSV import ----
+  $('#import-csv-btn').onclick = () => $('#import-csv-file').click();
+  $('#import-csv-file').onchange = async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const summary = importThermometerCsv(cook, await file.text());
+      toast(summary, 'good'); render();
+    } catch (err) {
+      toast(`CSV import failed: ${err.message}`, 'bad');
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  // ---- share card ----
+  $('#share-cook').onclick = async () => {
+    const btn = $('#share-cook');
+    btn.disabled = true; btn.textContent = '⏳ Rendering…';
+    try {
+      const photos = await getPhotos(cook.photoIds || []);
+      const blob = await renderShareCard(cook, photos[0]?.dataUrl);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `smoke-${(meat?.name || 'cook').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${cook.date || 'card'}.png`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      toast('Share card downloaded 📤', 'good');
+    } catch (err) {
+      toast(`Could not render card: ${err.message}`, 'bad');
+    } finally {
+      btn.disabled = false; btn.textContent = '📤 Share card';
+    }
+  };
+}
+
+// Parse a thermometer CSV export and merge readings into the cook.
+// Expected shape: first column = time (ISO datetime, epoch, or elapsed sec/min),
+// each additional numeric column = one probe (named by its header).
+function importThermometerCsv(cook, text) {
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  if (lines.length < 2) throw new Error('file has no data rows');
+  const delim = [',', ';', '\t'].sort((a, b) => lines[0].split(b).length - lines[0].split(a).length)[0];
+  const headers = lines[0].split(delim).map(h => h.replace(/^"|"$/g, '').trim());
+  const rows = lines.slice(1).map(l => l.split(delim).map(c => c.replace(/^"|"$/g, '').trim()));
+
+  // resolve timestamps
+  const base = cook.startTime || Date.now();
+  const parseTime = v => {
+    if (/^\d+(\.\d+)?$/.test(v)) {
+      const n = Number(v);
+      if (n > 1e12) return n;               // epoch ms
+      if (n > 1e9) return n * 1000;         // epoch seconds
+      const maxRaw = Number(rows[rows.length - 1][0]);
+      return base + (maxRaw > 720 ? n * 1000 : n * 60e3); // elapsed sec vs min
+    }
+    const t = Date.parse(v);
+    if (!Number.isNaN(t)) return t;
+    throw new Error(`unrecognized time value "${v}"`);
+  };
+
+  // map each temp column to a probe (create by header name if missing)
+  const probeForCol = {};
+  for (let col = 1; col < headers.length; col++) {
+    const sample = rows.find(r => r[col] && r[col] !== '')?.[col];
+    if (sample == null || Number.isNaN(Number(sample))) continue;
+    const name = headers[col] || `Probe ${col}`;
+    let probe = (cook.probes || []).find(p => p.name.toLowerCase() === name.toLowerCase());
+    if (!probe) probe = Cooks.addProbe(cook.id, name, PROBE_COLORS[(cook.probes || []).length % PROBE_COLORS.length]);
+    probeForCol[col] = probe.id;
+  }
+  if (!Object.keys(probeForCol).length) throw new Error('no numeric temperature columns found');
+
+  const newReadings = [];
+  for (const r of rows) {
+    if (!r[0]) continue;
+    const ts = parseTime(r[0]);
+    for (const [col, probeId] of Object.entries(probeForCol)) {
+      const v = Number(r[col]);
+      if (!Number.isNaN(v) && r[col] !== '') newReadings.push({ ts, probeId, temp: v });
+    }
+  }
+  const readings = [...(cook.readings || []), ...newReadings].sort((a, b) => a.ts - b.ts);
+  Cooks.update(cook.id, { readings });
+  return `Imported ${newReadings.length} readings across ${Object.keys(probeForCol).length} probe(s) 📥`;
 }
 
 function localDatetime(ts) {
@@ -656,6 +1044,7 @@ function checklistEntryFor(cutName) {
 }
 
 function renderCutLibrary() {
+  if (state.cutMode === 'woods') return renderWoodGuide();
   const filters = ['All', ...CUT_ANIMALS];
   const cuts = state.cutFilter === 'All'
     ? CUT_CATALOG
@@ -665,6 +1054,7 @@ function renderCutLibrary() {
   container.innerHTML = `
     <div class="view-header">
       <div><h2>📚 Cut Library</h2><p class="sub">${CUT_CATALOG.length} classic smoking cuts across every animal — tap one onto your want-to-try list</p></div>
+      <button class="btn secondary" id="to-woods">🌳 Wood Pairing Guide</button>
     </div>
     <div class="filter-chips">
       ${filters.map(f => `<button class="filter-chip ${state.cutFilter === f ? 'active' : ''}" data-filter="${esc(f)}">${esc(f)}${f !== 'All' ? ` (${CUT_CATALOG.filter(c => c.animal === f).length})` : ''}</button>`).join('')}
@@ -699,6 +1089,7 @@ function renderCutLibrary() {
       }).join('')}
     </div>`;
 
+  $('#to-woods').onclick = () => { state.cutMode = 'woods'; render(); };
   container.querySelectorAll('[data-filter]').forEach(b => b.onclick = () => {
     state.cutFilter = b.dataset.filter;
     render();
@@ -714,6 +1105,46 @@ function renderCutLibrary() {
     toast(`${cut.name} added to Want to Try 🎯`, 'good');
     render();
   });
+}
+
+function renderWoodGuide() {
+  // per-wood: your average cook score where the pellet flavor/brand mentions this wood
+  const done = Cooks.all().filter(c => c.status === 'done');
+  const scoreFor = wood => {
+    const key = wood.name.split(' ')[0].toLowerCase();
+    const scores = done
+      .filter(c => `${c.pelletFlavor || ''} ${c.pelletBrand || ''}`.toLowerCase().includes(key))
+      .map(c => Reviews.avgForCook(c.id))
+      .filter(v => v != null);
+    return scores.length ? { avg: scores.reduce((s, v) => s + v, 0) / scores.length, n: scores.length } : null;
+  };
+
+  container.innerHTML = `
+    <div class="view-header">
+      <div><h2>🌳 Wood Pairing Guide</h2><p class="sub">Which smoke wood for which meat — with your own scores where you've burned it</p></div>
+      <button class="btn secondary" id="to-cuts">📚 Cut Library</button>
+    </div>
+    <div class="grid cols-2">
+      ${WOOD_GUIDE.map(w => {
+        const mine = scoreFor(w);
+        return `
+        <div class="card">
+          <div class="flex spread">
+            <h3>${w.emoji} ${esc(w.name)}</h3>
+            <span class="flex">
+              <span class="strength-dots" title="Smoke strength ${w.strength}/5">${'●'.repeat(w.strength)}${'○'.repeat(5 - w.strength)}</span>
+              ${mine ? `<span class="score-pill ${mine.avg >= 8 ? 'high' : ''}" title="Your average across ${mine.n} smoke(s)">you: ★ ${round1(mine.avg)}/10</span>` : ''}
+            </span>
+          </div>
+          <p style="font-size:.87rem;margin:.3rem 0">${esc(w.flavor)}</p>
+          <div class="cut-stats" style="margin:.4rem 0">${w.pairs.map(p => `<span class="cut-stat">${esc(p)}</span>`).join('')}</div>
+          <p class="muted" style="font-size:.8rem">💡 ${esc(w.tip)}</p>
+        </div>`;
+      }).join('')}
+    </div>
+    <p class="muted mt">Strength dots = smoke intensity (● mild → bold). Your score appears once a finished smoke's pellet brand or flavor mentions the wood.</p>`;
+
+  $('#to-cuts').onclick = () => { state.cutMode = 'cuts'; render(); };
 }
 
 // ================= RUBS & SAUCES =================
@@ -994,8 +1425,16 @@ function renderSettings() {
         </form>
       </div>
       <div class="card">
+        <h3>💵 Cost Defaults</h3>
+        <p class="muted mb">Used for the cost-per-serving math on each smoke (meat price + pellets burned).</p>
+        <form class="form" id="cost-form">
+          <label class="field">Pellet price ($ per lb) <input name="pelletPricePerLb" type="number" step="0.05" min="0" value="${s.pelletPricePerLb ?? 1}"></label>
+          <div class="form-actions"><button class="btn small">Save</button></div>
+        </form>
+      </div>
+      <div class="card">
         <h3>💾 Your Data</h3>
-        <p class="muted mb">Everything lives in this browser (localStorage). Export regularly to back up or move devices.</p>
+        <p class="muted mb">Everything lives in this browser (localStorage). Export regularly to back up or move devices. Cook photos are stored separately on this device and aren't included in JSON exports.</p>
         <div class="flex">
           <button class="btn secondary" id="export-btn">⬇ Export JSON</button>
           <button class="btn secondary" id="import-btn">⬆ Import JSON</button>
@@ -1020,6 +1459,12 @@ function renderSettings() {
     const f = Object.fromEntries(new FormData(e.target));
     Settings.update({ apiKey: f.apiKey.trim(), model: f.model.trim() || 'claude-opus-4-8' });
     toast('AI settings saved', 'good'); render();
+  };
+
+  $('#cost-form').onsubmit = e => {
+    e.preventDefault();
+    Settings.update({ pelletPricePerLb: Number(new FormData(e.target).get('pelletPricePerLb')) || 0 });
+    toast('Cost defaults saved', 'good'); render();
   };
 
   $('#export-btn').onclick = () => {

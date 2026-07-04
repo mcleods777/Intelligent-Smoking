@@ -6,6 +6,8 @@ const emptyDb = () => ({
   meats: [],      // {id, name, type, cut, grade, weightLbs, price, vendorId, purchaseDate, qualityRating, status, notes}
   vendors: [],    // {id, name, location, notes}
   cooks: [],      // {id, meatId, date, method, pelletBrand, pelletFlavor, pelletLbs, targetGrillTemp, targetInternalTemp,
+                  //  servings, weather: {tempF, windMph, humidity, conditions}, reminders: [{id,label,intervalMin,nextDue,enabled,once}],
+                  //  photoIds: [], recipeIds: [],
                   //  probes:[{id,name,color}], readings:[{ts,probeId,temp}], actions:[{ts,type,text}],
                   //  startTime, endTime, status, notes}
   reviews: [],    // {id, cookId, reviewer, score, comments, date}
@@ -13,7 +15,7 @@ const emptyDb = () => ({
   recipes: [],    // {id, name, type: 'Rub'|'Sauce'|'Marinade'|'Brine'|'Glaze'|'Injection',
                   //  ingredients: [{item, amount}], instructions, notes,
                   //  ratings: [{id, reviewer, score, comments, date}]}
-  settings: { apiKey: '', model: 'claude-opus-4-8', people: [] },
+  settings: { apiKey: '', model: 'claude-opus-4-8', people: [], pelletPricePerLb: 1.0 },
 });
 
 let db = load();

@@ -123,6 +123,42 @@ export function computeInsights() {
     });
   }
 
+  // --- Weather intelligence ---
+  const withWeather = rated.filter(x => x.cook.weather && x.cook.weather.tempF != null);
+  if (withWeather.length >= 2) {
+    const cold = withWeather.filter(x => x.cook.weather.tempF < 50);
+    const warm = withWeather.filter(x => x.cook.weather.tempF >= 50);
+    if (cold.length && warm.length) {
+      const coldAvg = avg(cold.map(x => x.avg));
+      const warmAvg = avg(warm.map(x => x.avg));
+      insights.push({
+        icon: '🌤️', title: 'Weather Intelligence',
+        lines: [
+          `Cold-weather smokes (<50°F) average **${fmt(coldAvg)}/10** vs **${fmt(warmAvg)}/10** in warmer weather.`,
+          coldAvg < warmAvg - 0.5 ? 'Cold hurts your pit stability — consider a welding blanket and budget extra pellets on chilly days.' : 'Weather isn\'t holding you back — nice pit management.',
+        ],
+      });
+    }
+  }
+
+  // --- Cost per serving ---
+  const pelletPricePerLb = Number(db.settings.pelletPricePerLb) || 0;
+  const costed = doneCooks.map(c => {
+    const meat = Meats.get(c.meatId);
+    const cost = (Number(meat?.price) || 0) + (Number(c.pelletLbs) || 0) * pelletPricePerLb;
+    return { c, cost, per: c.servings > 0 ? cost / c.servings : null };
+  }).filter(x => x.per != null);
+  if (costed.length) {
+    const cheapest = [...costed].sort((a, b) => a.per - b.per)[0];
+    insights.push({
+      icon: '🧮', title: 'Cost per Serving',
+      lines: [
+        `Average across ${costed.length} cook(s): **${money(avg(costed.map(x => x.per)))}/serving**.`,
+        `Most economical: **${Meats.get(cheapest.c.meatId)?.name || 'Unknown'}** at **${money(cheapest.per)}/serving** for ${cheapest.c.servings} people.`,
+      ],
+    });
+  }
+
   // --- Checklist nudges ---
   const toTry = db.checklist.filter(c => c.status === 'try');
   if (toTry.length) {
@@ -196,6 +232,19 @@ export function analyzeCook(cook) {
     const hrs = (cook.endTime - cook.startTime) / 3600e3;
     if (hrs > 0) lines.push(`Pellet burn rate: **${fmt(cook.pelletLbs / hrs)} lbs/hr** (${cook.pelletLbs} lbs of ${cook.pelletBrand || 'pellets'} total).`);
   }
+  // cost breakdown: meat + pellets, per serving when guest count is logged
+  const pelletPrice = Number(Settings.get().pelletPricePerLb) || 0;
+  const meatCost = Number(meat?.price) || 0;
+  const pelletCost = (Number(cook.pelletLbs) || 0) * pelletPrice;
+  const totalCost = meatCost + pelletCost;
+  if (totalCost > 0) {
+    const per = cook.servings > 0 ? ` — **${money(totalCost / cook.servings)}/serving** for ${cook.servings} people` : '';
+    lines.push(`Cook cost: **${money(totalCost)}** (${money(meatCost)} meat + ${money(pelletCost)} pellets)${per}.`);
+  }
+  if (cook.weather && (cook.weather.tempF != null || cook.weather.conditions)) {
+    const w = cook.weather;
+    lines.push(`Weather: ${[w.conditions, w.tempF != null ? `${w.tempF}°F` : null, w.windMph != null ? `${w.windMph} mph wind` : null, w.humidity != null ? `${w.humidity}% humidity` : null].filter(Boolean).join(', ')}.`);
+  }
   if (avgScore != null) lines.push(`Crowd verdict: **${fmt(avgScore)}/10** from ${Reviews.forCook(cook.id).length} reviewer(s).`);
   if (!lines.length) lines.push('Log temperatures, times, and reviews for this smoke to unlock analysis.');
   return lines;
@@ -220,6 +269,8 @@ function buildContext() {
     })),
     actions: (c.actions || []).map(a => ({ t: new Date(a.ts).toISOString(), type: a.type, text: a.text })),
     rubsAndSauces: (c.recipeIds || []).map(rid => Recipes.get(rid)?.name).filter(Boolean),
+    weather: c.weather || undefined,
+    servings: c.servings || undefined,
     reviews: Reviews.forCook(c.id).map(r => ({ reviewer: r.reviewer, score: r.score, comments: r.comments })),
     avgScore: Reviews.avgForCook(c.id),
   }));
