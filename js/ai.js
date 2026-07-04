@@ -4,7 +4,7 @@
 //   2. Claude API — optional, plug in an API key in Settings for
 //      conversational analysis and richer suggestions.
 
-import { getDb, Meats, Vendors, Reviews, Settings } from './store.js';
+import { getDb, Meats, Vendors, Reviews, Recipes, Settings } from './store.js';
 
 const fmt = n => (Math.round(n * 100) / 100).toLocaleString();
 const money = n => '$' + (Math.round(n * 100) / 100).toFixed(2);
@@ -97,6 +97,28 @@ export function computeInsights() {
         `Cheapest per pound: **${cheapest.vendor.name}** at **${money(cheapest.perLb)}/lb** (${cheapest.n} purchase${cheapest.n > 1 ? 's' : ''}).`,
         bestValue ? `Best quality-per-dollar: **${bestValue.vendor.name}** — quality ${fmt(bestValue.quality)}/10 at ${money(bestValue.perLb)}/lb.` : null,
         `Total invested in meat so far: **${money(sum(db.meats.map(m => Number(m.price) || 0)))}**.`,
+      ].filter(Boolean),
+    });
+  }
+
+  // --- Rub & sauce performance ---
+  const ratedRecipes = db.recipes
+    .map(r => ({ r, avg: Recipes.avgScore(r) }))
+    .filter(x => x.avg != null)
+    .sort((a, b) => b.avg - a.avg);
+  const cookScoreByRecipe = db.recipes.map(r => {
+    const cookAvgs = doneCooks
+      .filter(c => (c.recipeIds || []).includes(r.id))
+      .map(c => Reviews.avgForCook(c.id))
+      .filter(v => v != null);
+    return { r, n: cookAvgs.length, avg: cookAvgs.length ? avg(cookAvgs) : null };
+  }).filter(x => x.avg != null).sort((a, b) => b.avg - a.avg);
+  if (ratedRecipes.length || cookScoreByRecipe.length) {
+    insights.push({
+      icon: '🧂', title: 'Rub & Sauce Performance',
+      lines: [
+        ratedRecipes.length ? `Top-rated recipe: **${ratedRecipes[0].r.name}** (${ratedRecipes[0].r.type}) at **${fmt(ratedRecipes[0].avg)}/10**.` : null,
+        cookScoreByRecipe.length ? `Best cook results: smokes using **${cookScoreByRecipe[0].r.name}** average **${fmt(cookScoreByRecipe[0].avg)}/10** across ${cookScoreByRecipe[0].n} cook(s).` : null,
       ].filter(Boolean),
     });
   }
@@ -197,11 +219,18 @@ function buildContext() {
       temp: r.temp,
     })),
     actions: (c.actions || []).map(a => ({ t: new Date(a.ts).toISOString(), type: a.type, text: a.text })),
+    rubsAndSauces: (c.recipeIds || []).map(rid => Recipes.get(rid)?.name).filter(Boolean),
     reviews: Reviews.forCook(c.id).map(r => ({ reviewer: r.reviewer, score: r.score, comments: r.comments })),
     avgScore: Reviews.avgForCook(c.id),
   }));
   const meats = db.meats.map(m => ({ ...m, vendor: Vendors.get(m.vendorId)?.name }));
-  return JSON.stringify({ meats, cooks, checklist: db.checklist, vendors: db.vendors }, null, 1);
+  const recipes = db.recipes.map(r => ({
+    name: r.name, type: r.type,
+    ingredients: (r.ingredients || []).map(i => `${i.amount} ${i.item}`.trim()),
+    avgRating: Recipes.avgScore(r),
+    ratings: (r.ratings || []).map(x => ({ reviewer: x.reviewer, score: x.score, comments: x.comments })),
+  }));
+  return JSON.stringify({ meats, cooks, recipes, checklist: db.checklist, vendors: db.vendors }, null, 1);
 }
 
 function thin(arr, max) {
@@ -261,6 +290,85 @@ export async function askClaude(question) {
     throw new Error(`Claude returned no text (stop_reason: ${data.stop_reason || 'unknown'}). Check the model name in Settings — current models include claude-opus-4-8 and claude-sonnet-5.`);
   }
   return text;
+}
+
+// ---------- Photo scan: extract meat details from a package label ----------
+
+function downscaleImage(file, maxDim = 1568) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width: w, height: h } = img;
+      const scale = Math.min(1, maxDim / Math.max(w, h));
+      w = Math.round(w * scale); h = Math.round(h * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', 0.85).split(',')[1]);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not read that image file.')); };
+    img.src = url;
+  });
+}
+
+export async function scanMeatLabel(file) {
+  const { apiKey, model } = Settings.get();
+  if (!apiKey) throw new Error('No API key set — add one in Settings to enable label scanning.');
+
+  const b64 = await downscaleImage(file);
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: model || 'claude-opus-4-8',
+      max_tokens: 16000,
+      system: 'You read grocery meat package labels for a BBQ tracking app. Respond ONLY with a single JSON object, no prose, no code fences.',
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } },
+          {
+            type: 'text',
+            text: 'Read this meat package label and extract the details. Respond with ONLY this JSON object:\n'
+              + '{"name": "product name as a human would call it, e.g. Whole Packer Brisket",\n'
+              + ' "type": "one of: Beef, Pork, Poultry, Lamb, Fish, Game, Other",\n'
+              + ' "cut": "the cut, e.g. Brisket, Shoulder, Ribs",\n'
+              + ' "grade": "one of: Prime, Choice, Select, Wagyu, Organic, Heritage, N/A",\n'
+              + ' "weightLbs": <net weight in pounds as a number, convert from kg if needed, null if not visible>,\n'
+              + ' "price": <total price in dollars as a number, NOT price per pound, null if not visible>,\n'
+              + ' "pricePerLb": <price per pound as a number, null if not visible>,\n'
+              + ' "notes": "anything notable: bone-in, sell-by date, marbling, etc., or empty string"}\n'
+              + 'If total price is missing but weight and price/lb are visible, compute total = weight × price/lb.',
+          },
+        ],
+      }],
+    }),
+  });
+
+  if (!resp.ok) {
+    let detail = '';
+    try { detail = (await resp.json())?.error?.message || ''; } catch { /* ignore */ }
+    throw new Error(`Claude API error (${resp.status}): ${detail || resp.statusText}`);
+  }
+  const data = await resp.json();
+  if (data.stop_reason === 'refusal') throw new Error('Claude declined to read this image.');
+  const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('Could not find label details in the photo. Try a clearer, closer shot of the label.');
+  let parsed;
+  try { parsed = JSON.parse(match[0]); } catch { throw new Error('Claude returned an unreadable result — try again.'); }
+  // derive total price if only per-lb was visible
+  if ((parsed.price == null || parsed.price === 0) && parsed.pricePerLb && parsed.weightLbs) {
+    parsed.price = Math.round(parsed.pricePerLb * parsed.weightLbs * 100) / 100;
+  }
+  return parsed;
 }
 
 // ---------- small utils ----------

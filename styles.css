@@ -180,6 +180,25 @@ canvas.temp-chart { width: 100%; height: 280px; display: block; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ---- Rubs & Sauces ---- */
+.ingredients-table { width: auto; background: transparent; border: none; margin: .4rem 0; font-size: .86rem; }
+.ingredients-table td { border: none; padding: .18rem .5rem .18rem 0; white-space: normal; }
+.ingredients-table tr:hover td { background: none; }
+.ing-amount { color: var(--gold); font-weight: 600; white-space: nowrap !important; }
+.recipe-instructions { font-size: .84rem; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: .5rem .65rem; margin-top: .4rem; }
+.recipe-checks { display: flex; flex-wrap: wrap; gap: .4rem .9rem; padding: .4rem .1rem; }
+.recipe-check { display: flex; align-items: center; gap: .35rem; font-size: .85rem; color: var(--text); cursor: pointer; }
+.recipe-check input { width: auto; }
+.ingredient-row { align-items: end; grid-template-columns: 130px 1fr auto; }
+
+/* ---- Label scan ---- */
+.scan-box {
+  display: flex; align-items: center; gap: .7rem; flex-wrap: wrap;
+  border: 1px dashed #5a4a2c; border-radius: 10px; padding: .6rem .8rem; margin-bottom: .9rem;
+  background: linear-gradient(135deg, rgba(244,185,66,.06), rgba(255,107,53,.04));
+}
+.scan-box .muted { flex: 1; min-width: 180px; font-size: .78rem; }
+
 /* ---- Cut Library ---- */
 .cut-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
 .cut-card {

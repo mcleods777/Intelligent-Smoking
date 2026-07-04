@@ -56,6 +56,30 @@ export const CUT_CATALOG = [
     blurb: 'The most tender cut on the steer. Mild flavor loves smoke — keep it medium-rare and don\'t walk away.',
   },
 
+  {
+    id: 'chuck-short-ribs', name: 'Chuck Short Ribs (English Cut)', animal: 'Beef', emoji: '🧱',
+    difficulty: 'Medium', pitTemp: 250, internalTemp: 203, time: '6–8 hrs',
+    method: 'Low & Slow',
+    blurb: 'Thick single-bone blocks from the chuck — smaller than plate ribs but just as rich. Great when you can\'t find dinos.',
+  },
+  {
+    id: 'flanken-ribs', name: 'Flanken Short Ribs (Korean Cut)', animal: 'Beef', emoji: '🇰🇷',
+    difficulty: 'Easy', pitTemp: 400, internalTemp: 145, time: '10–15 min',
+    method: 'Hot & Fast',
+    blurb: 'Short ribs sliced thin ACROSS the bones. Marinate galbi-style, then flash them over high heat — a totally different rib experience.',
+  },
+  {
+    id: 'picanha', name: 'Picanha (Sirloin Cap)', animal: 'Beef', emoji: '🇧🇷',
+    difficulty: 'Easy', pitTemp: 225, internalTemp: 130, time: '1–1.5 hrs',
+    method: 'Reverse Sear',
+    blurb: 'Brazil\'s favorite cut — a sirloin cap with a glorious fat cap. Score the fat, salt heavily, smoke then sear fat-side down.',
+  },
+  {
+    id: 'top-round', name: 'Top Round (Smoked Roast Beef)', animal: 'Beef', emoji: '🥪',
+    difficulty: 'Easy', pitTemp: 225, internalTemp: 132, time: '3–4 hrs',
+    method: 'Low & Slow',
+    blurb: 'Budget cut, deli payoff. Smoke to 132°F, chill, and slice paper-thin for the best roast beef sandwiches of your life.',
+  },
   // ---------------- PORK ----------------
   {
     id: 'pork-butt', name: 'Pork Shoulder (Boston Butt)', animal: 'Pork', emoji: '🐷',
@@ -106,6 +130,30 @@ export const CUT_CATALOG = [
     blurb: 'Get double-cut bone-in chops. Smoke to ~135°F, sear for the crust, rest. Juicy every time.',
   },
 
+  {
+    id: 'country-ribs', name: 'Country-Style Ribs', animal: 'Pork', emoji: '🏡',
+    difficulty: 'Easy', pitTemp: 250, internalTemp: 195, time: '3–4 hrs',
+    method: 'Low & Slow',
+    blurb: 'Not really ribs — strips cut from the shoulder end, so they\'re meaty and marbled. Treat them like mini pork butts and take them way past "done".',
+  },
+  {
+    id: 'rib-tips', name: 'Pork Rib Tips', animal: 'Pork', emoji: '🍬',
+    difficulty: 'Easy', pitTemp: 250, internalTemp: 200, time: '3–4 hrs',
+    method: 'Low & Slow',
+    blurb: 'The cartilage-laced strip trimmed off St. Louis spares. Chicago BBQ legend — chewy, saucy, addictive. Never throw them away again.',
+  },
+  {
+    id: 'picnic-shoulder', name: 'Picnic Shoulder', animal: 'Pork', emoji: '🧺',
+    difficulty: 'Medium', pitTemp: 250, internalTemp: 203, time: '8–12 hrs',
+    method: 'Low & Slow',
+    blurb: 'The lower half of the shoulder — cheaper than Boston butt with skin you can turn into cracklins. Whole-hog flavor without the whole hog.',
+  },
+  {
+    id: 'pork-steaks', name: 'Pork Steaks (Shoulder Steaks)', animal: 'Pork', emoji: '🎸',
+    difficulty: 'Easy', pitTemp: 275, internalTemp: 190, time: '2.5–3 hrs',
+    method: 'Low & Slow',
+    blurb: 'St. Louis backyard royalty — Boston butt sliced into inch-thick steaks. Smoke, then braise in sauce right on the pit until tender.',
+  },
   // ---------------- POULTRY ----------------
   {
     id: 'whole-chicken', name: 'Whole Chicken', animal: 'Poultry', emoji: '🐔',
@@ -150,6 +198,24 @@ export const CUT_CATALOG = [
     blurb: 'State-fair style. Cure them overnight for that signature pink, hammy bite, then smoke until fall-apart.',
   },
 
+  {
+    id: 'leg-quarters', name: 'Chicken Leg Quarters', animal: 'Poultry', emoji: '🦵',
+    difficulty: 'Easy', pitTemp: 300, internalTemp: 175, time: '1.5–2 hrs',
+    method: 'Hot & Fast',
+    blurb: 'Thigh and drumstick together, often under a dollar a pound. The cheapest way to feed a crowd something great off the smoker.',
+  },
+  {
+    id: 'cornish-hens', name: 'Cornish Game Hens', animal: 'Poultry', emoji: '🐤',
+    difficulty: 'Easy', pitTemp: 300, internalTemp: 165, time: '1.5–2 hrs',
+    method: 'Hot & Fast',
+    blurb: 'Personal-size birds that plate beautifully — everyone gets their own. Brine an hour, spatchcock, and run the pit hot.',
+  },
+  {
+    id: 'duck-breast', name: 'Duck Breast', animal: 'Poultry', emoji: '🍒',
+    difficulty: 'Medium', pitTemp: 225, internalTemp: 135, time: '~1 hr',
+    method: 'Reverse Sear',
+    blurb: 'Treat it like a steak, not a bird: score the fat, smoke gently to ~125°F, then sear skin-side down until crackling. Cherry wood is magic here.',
+  },
   // ---------------- LAMB ----------------
   {
     id: 'leg-of-lamb', name: 'Leg of Lamb', animal: 'Lamb', emoji: '🍷',
@@ -176,6 +242,12 @@ export const CUT_CATALOG = [
     blurb: 'An underrated sleeper — fattier than pork ribs with bold flavor. A vinegar mop cuts the richness perfectly.',
   },
 
+  {
+    id: 'lamb-loin-chops', name: 'Lamb Loin Chops', animal: 'Lamb', emoji: '🥩',
+    difficulty: 'Easy', pitTemp: 225, internalTemp: 130, time: '~45 min',
+    method: 'Reverse Sear',
+    blurb: 'Little lamb T-bones. Quick smoke, hot sear, and a squeeze of lemon — an elegant weeknight cook that punches way above its size.',
+  },
   // ---------------- FISH ----------------
   {
     id: 'salmon', name: 'Salmon Fillet', animal: 'Fish', emoji: '🐟',
@@ -196,6 +268,12 @@ export const CUT_CATALOG = [
     blurb: 'Oily fish = smoke magnet. A staple of European smokehouses; fantastic flaked into pâté or over salad.',
   },
 
+  {
+    id: 'shrimp', name: 'Shrimp (Jumbo, Shell-On)', animal: 'Fish', emoji: '🍤',
+    difficulty: 'Easy', pitTemp: 225, internalTemp: 120, time: '20–30 min',
+    method: 'Low & Slow',
+    blurb: 'The fastest smoke there is. Shell-on jumbos, a garlic-butter bath, and half an hour of smoke — an appetizer that steals the show.',
+  },
   // ---------------- GAME & OTHER ----------------
   {
     id: 'venison', name: 'Venison Roast / Backstrap', animal: 'Game & Other', emoji: '🦌',

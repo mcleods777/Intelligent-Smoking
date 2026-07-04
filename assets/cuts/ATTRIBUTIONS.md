@@ -16,21 +16,34 @@ I'd appreciate if you could mail me (Ko... | CC BY-SA 4.0 |
 | `chicken-thighs.jpg` | [File:Raw chicken thighs.jpg](https://commons.wikimedia.org/wiki/File:Raw_chicken_thighs.jpg) | gran | CC BY 3.0 |
 | `chicken-wings.jpg` | [File:Raw chicken wings.jpg](https://commons.wikimedia.org/wiki/File:Raw_chicken_wings.jpg) | ProjectManhattan | CC BY-SA 3.0 |
 | `chuck-roast.jpg` | [File:Smoked Chuck Roast texture14.jpg](https://commons.wikimedia.org/wiki/File:Smoked_Chuck_Roast_texture14.jpg) | unknown | CC BY-SA 4.0 |
+| `chuck-short-ribs.jpg` | [File:Beef short ribs.jpg](https://commons.wikimedia.org/wiki/File:Beef_short_ribs.jpg) | Ross | CC BY-SA 2.0 |
+| `cornish-hens.jpg` | [File:Rock Cornish Hen.jpg](https://commons.wikimedia.org/wiki/File:Rock_Cornish_Hen.jpg) | Hoyabird8 | CC BY-SA 3.0 |
+| `country-ribs.jpg` | [File:4T0A7542 (41305951335).jpg](https://commons.wikimedia.org/wiki/File:4T0A7542_(41305951335).jpg) | usbotschaftberlin | Public domain |
+| `duck-breast.jpg` | [File:The Inn at Little Washington IMG 0243 (7947679258).jpg](https://commons.wikimedia.org/wiki/File:The_Inn_at_Little_Washington_IMG_0243_(7947679258).jpg) | Warren In the Weeds | CC BY-SA 2.0 |
+| `flanken-ribs.jpg` | [File:Roasted beef ribs on rice lunch box of NewDays.jpg](https://commons.wikimedia.org/wiki/File:Roasted_beef_ribs_on_rice_lunch_box_of_NewDays.jpg) | 毒島みるく | CC0 |
 | `fresh-ham.jpg` | [File:Mangalitsa (Paleo) Festival - Budapest, 2013 (20).JPG](https://commons.wikimedia.org/wiki/File:Mangalitsa_(Paleo)_Festival_-_Budapest,_2013_(20).JPG) | Derzsi Elekes Andor | CC BY 3.0 |
+| `lamb-loin-chops.jpg` | [File:Braai meat - rib chops.jpg](https://commons.wikimedia.org/wiki/File:Braai_meat_-_rib_chops.jpg) | Ossewa | CC BY-SA 4.0 |
 | `lamb-ribs.jpg` | [File:1er Embarque de Carne de Cordero con Hueso (37921124346).jpg](https://commons.wikimedia.org/wiki/File:1er_Embarque_de_Carne_de_Cordero_con_Hueso_(37921124346).jpg) | Embajada de los Estados Unidos en Uruguay from Montevideo... | Public domain |
 | `lamb-shoulder.jpg` | [File:Carnicería, carne de cordero.jpg](https://commons.wikimedia.org/wiki/File:Carnicer%C3%ADa,_carne_de_cordero.jpg) | Juan Emilio Prades Bel | CC BY 4.0 |
 | `leg-of-lamb.jpg` | [File:2022-05-13 20 34 58 A Dulles Kabob Lamb Kabob (leg of lamb marinated in a blend of onion, turmeric and seasoning) in the Dulles section of Sterling, Loudoun County, Virginia.jpg](https://commons.wikimedia.org/wiki/File:2022-05-13_20_34_58_A_Dulles_Kabob_Lamb_Kabob_(leg_of_lamb_marinated_in_a_blend_of_onion,_turmeric_and_seasoning)_in_the_Dulles_section_of_Sterling,_Loudoun_County,_Virginia.jpg) | Famartin | CC BY-SA 4.0 |
+| `leg-quarters.jpg` | [File:Roasted chicken leg.jpg](https://commons.wikimedia.org/wiki/File:Roasted_chicken_leg.jpg) | Baoothersks | CC BY-SA 4.0 |
 | `mackerel.jpg` | [File:24 - CIMG0871.jpg](https://commons.wikimedia.org/wiki/File:24_-_CIMG0871.jpg) | Susan Slater | CC BY-SA 4.0 |
+| `picanha.jpg` | [File:Barbecue of Picanha cut.jpg](https://commons.wikimedia.org/wiki/File:Barbecue_of_Picanha_cut.jpg) | Rogerio da Silva | CC BY 2.0 |
+| `picnic-shoulder.jpg` | [File:Diced Pork Shoulder (13152872373).jpg](https://commons.wikimedia.org/wiki/File:Diced_Pork_Shoulder_(13152872373).jpg) | Ryan Snyder | CC BY 2.0 |
 | `pork-belly.jpg` | [File:Sliced pork belly - Bo Ssam Boiled Pork Belly - Sydney Madang Restaurant AUD27 small.jpg](https://commons.wikimedia.org/wiki/File:Sliced_pork_belly_-_Bo_Ssam_Boiled_Pork_Belly_-_Sydney_Madang_Restaurant_AUD27_small.jpg) | avlxyz | CC BY-SA 2.0 |
 | `pork-butt.jpg` | [File:Schweinenacken-1.jpg](https://commons.wikimedia.org/wiki/File:Schweinenacken-1.jpg) | Rainer Zenz | CC BY-SA 3.0 |
 | `pork-chops.jpg` | [File:Alex Munsell 2015-05-20 (Unsplash Yr4n8O 3UPc).jpg](https://commons.wikimedia.org/wiki/File:Alex_Munsell_2015-05-20_(Unsplash_Yr4n8O_3UPc).jpg) | Alex Munsell alexmunsell | CC0 |
 | `pork-loin.jpg` | [File:Milano's Café pork loin and veg Russell Street Stroud Gloucestershire England 01.jpg](https://commons.wikimedia.org/wiki/File:Milano%27s_Caf%C3%A9_pork_loin_and_veg_Russell_Street_Stroud_Gloucestershire_England_01.jpg) | Acabashi | CC BY-SA 4.0 |
+| `pork-steaks.jpg` | [File:Gfp-pork-steak.jpg](https://commons.wikimedia.org/wiki/File:Gfp-pork-steak.jpg) | Yinan Chen | Public Domain |
 | `pork-tenderloin.jpg` | [File:9936Pork tenderloin sauces 01.jpg](https://commons.wikimedia.org/wiki/File:9936Pork_tenderloin_sauces_01.jpg) | JFVelasquez Floro | CC0 |
 | `prime-rib.jpg` | [File:Standing-rib-roast.jpg](https://commons.wikimedia.org/wiki/File:Standing-rib-roast.jpg) | Michael C. Berch, aka MCB at en.wikipedia | CC BY-SA 2.5 |
 | `rack-of-lamb.jpg` | [File:Carne de cordero.jpg](https://commons.wikimedia.org/wiki/File:Carne_de_cordero.jpg) | Oviso | CC BY-SA 3.0 |
+| `rib-tips.jpg` | [File:Baby back pork ribs.jpg](https://commons.wikimedia.org/wiki/File:Baby_back_pork_ribs.jpg) | Chensiyuan at English Wikipedia | CC BY-SA 3.0 |
 | `salmon.jpg` | [File:Raw salmon fillets.jpg](https://commons.wikimedia.org/wiki/File:Raw_salmon_fillets.jpg) | FULVIO_TOGNON | CC0 |
 | `sausages.jpg` | [File:Raw sausages on skewers in Taiwan 20131231.jpg](https://commons.wikimedia.org/wiki/File:Raw_sausages_on_skewers_in_Taiwan_20131231.jpg) | 褒忠國中 雲端網 | CC BY 2.0 |
+| `shrimp.jpg` | [File:Grilled Shrimp Skewers.jpg](https://commons.wikimedia.org/wiki/File:Grilled_Shrimp_Skewers.jpg) | Eximiousincorp | CC BY-SA 4.0 |
 | `spare-ribs.jpg` | [File:Applying a spice rub to pork ribs for a barbecue - 20080329.jpg](https://commons.wikimedia.org/wiki/File:Applying_a_spice_rub_to_pork_ribs_for_a_barbecue_-_20080329.jpg) | Daryn Nakhuda. | CC BY 2.0 |
+| `top-round.jpg` | [File:Beef round top round steak in package.jpg](https://commons.wikimedia.org/wiki/File:Beef_round_top_round_steak_in_package.jpg) | No machine-readable author provided. Dbenbenn assumed (ba... | CC BY-SA 3.0 |
 | `tri-tip.jpg` | [File:Tri-tip-MCB.jpg](https://commons.wikimedia.org/wiki/File:Tri-tip-MCB.jpg) | MCB at English Wikipedia | CC BY-SA 2.5 |
 | `turkey-breast.jpg` | [File:Cooked turkey breast - November 2023 - Sarah Stierch.jpg](https://commons.wikimedia.org/wiki/File:Cooked_turkey_breast_-_November_2023_-_Sarah_Stierch.jpg) | Missvain | CC BY 4.0 |
 | `venison.jpg` | [File:Raw venison shoulder meat, 2012.jpg](https://commons.wikimedia.org/wiki/File:Raw_venison_shoulder_meat,_2012.jpg) | Gloria Cabada-Leman | CC BY 2.0 |

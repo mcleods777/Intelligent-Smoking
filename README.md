@@ -20,7 +20,13 @@ Everyone at the table scores each smoke out of 10 with comments. The app compute
 Three lists — **Meats We Love**, **Want to Try**, and **Tried** — with one-click moves between them.
 
 ### 📚 Cut Library
-A prepopulated, photo-backed catalog of 30+ classic smoking cuts across beef, pork, poultry, lamb, fish, and game. Each card shows a photo of the cut, difficulty, recommended method, pit temp, target internal temp, typical cook time, and a pitmaster tip — with a one-click **Want to Try** button that adds it to your checklist (pre-filled with the cooking targets). Photos are stored locally (`assets/cuts/`, sourced from Wikimedia Commons — see `assets/cuts/ATTRIBUTIONS.md`), so the library works offline.
+A prepopulated, photo-backed catalog of 45 classic smoking cuts across beef, pork, poultry, lamb, fish, and game — including every rib style (plate/dino, back, chuck short, flanken, baby backs, St. Louis spares, country-style, rib tips, lamb ribs). Each card shows a photo of the cut, difficulty, recommended method, pit temp, target internal temp, typical cook time, and a pitmaster tip — with a one-click **Want to Try** button that adds it to your checklist (pre-filled with the cooking targets). Photos are stored locally (`assets/cuts/`, sourced from Wikimedia Commons — see `assets/cuts/ATTRIBUTIONS.md`), so the library works offline.
+
+### 🧂 Rubs & Sauces
+Your recipe book: rubs, sauces, marinades, brines, glazes, and injections — each with exact ingredients and measurements, prep instructions, and notes. The whole crew can rate every recipe (average score shown), recipes can be tagged onto smoke sessions, and the AI insights track which rub or sauce produces your best-scoring cooks.
+
+### 📷 AI Label Scanning
+When adding a meat, snap or upload a photo of the package label and Claude reads it — filling in the name, cut, type, grade, weight, and price automatically (it even computes the total from price-per-pound when needed). Requires an Anthropic API key in Settings.
 
 ### 🏪 Vendor Economics
 Track every store and butcher. Per vendor the app computes purchase count, total spent, average $/lb, average meat quality, and a **Value Index** (quality ÷ $/lb) so you can shop where quality per dollar is best.

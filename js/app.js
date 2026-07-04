@@ -1,11 +1,11 @@
 // ============ Smoker AI — application UI ============
 
 import {
-  getDb, Meats, Vendors, Cooks, Reviews, Checklist, Settings,
+  getDb, Meats, Vendors, Cooks, Reviews, Checklist, Recipes, Settings,
   exportJson, importJson, resetDb, loadDemoData,
 } from './store.js';
 import { drawTempChart } from './charts.js';
-import { computeInsights, analyzeCook, askClaude, hasApiKey } from './ai.js';
+import { computeInsights, analyzeCook, askClaude, hasApiKey, scanMeatLabel } from './ai.js';
 import { CUT_CATALOG, CUT_ANIMALS } from './cuts.js';
 
 // ---------- tiny helpers ----------
@@ -79,6 +79,7 @@ function render() {
     reviews: renderReviews,
     checklist: renderChecklist,
     cutlibrary: renderCutLibrary,
+    recipes: renderRecipes,
     vendors: renderVendors,
     insights: renderInsights,
     settings: renderSettings,
@@ -189,6 +190,14 @@ function openMeatForm(meat = null) {
   const vendors = Vendors.all();
   openModal(`
     <h3>${meat ? 'Edit' : 'Add'} Meat</h3>
+    ${!meat ? `
+    <div class="scan-box">
+      <button type="button" class="btn secondary" id="scan-label" ${hasApiKey() ? '' : 'disabled'}>📷 Scan package label with AI</button>
+      <input type="file" id="scan-file" accept="image/*" capture="environment" style="display:none">
+      <span class="muted" id="scan-status">${hasApiKey()
+        ? 'Snap or upload a photo of the label — Claude fills in the cut, weight, and price.'
+        : 'Add an API key in Settings to enable label scanning.'}</span>
+    </div>` : ''}
     <form class="form" id="meat-form">
       <label class="field">Name
         <input name="name" required placeholder="e.g. Whole Packer Brisket" value="${esc(meat?.name || '')}">
@@ -229,6 +238,36 @@ function openMeatForm(meat = null) {
       </div>
     </form>`);
   $('#cancel-modal').onclick = closeModal;
+  const scanBtn = $('#scan-label');
+  if (scanBtn) {
+    const fileInput = $('#scan-file');
+    const status = $('#scan-status');
+    scanBtn.onclick = () => fileInput.click();
+    fileInput.onchange = async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      scanBtn.disabled = true;
+      status.innerHTML = '<span class="spinner"></span>Reading the label…';
+      try {
+        const r = await scanMeatLabel(file);
+        const form = $('#meat-form');
+        if (r.name) form.name.value = r.name;
+        if (r.type && MEAT_TYPES.includes(r.type)) form.type.value = r.type;
+        if (r.cut) form.cut.value = r.cut;
+        if (r.grade && GRADES.includes(r.grade)) form.grade.value = r.grade;
+        if (r.weightLbs != null) form.weightLbs.value = r.weightLbs;
+        if (r.price != null) form.price.value = r.price;
+        if (r.notes) form.notes.value = r.notes;
+        status.textContent = '✅ Label read — double-check the values, then save.';
+        toast('Label scanned', 'good');
+      } catch (err) {
+        status.textContent = `⚠️ ${err.message}`;
+      } finally {
+        scanBtn.disabled = false;
+        fileInput.value = '';
+      }
+    };
+  }
   $('#meat-form').onsubmit = e => {
     e.preventDefault();
     const f = Object.fromEntries(new FormData(e.target));
@@ -302,6 +341,16 @@ function openCookForm(cook = null) {
         <label class="field">Pellet flavor <input name="pelletFlavor" placeholder="Hickory, Cherry…" value="${esc(cook?.pelletFlavor || '')}"></label>
         <label class="field">Pellets used (lbs) <input name="pelletLbs" type="number" step="0.5" min="0" value="${cook?.pelletLbs ?? ''}"></label>
       </div>
+      ${Recipes.all().length ? `
+      <label class="field">Rubs & sauces used
+        <div class="recipe-checks">
+          ${Recipes.all().map(r => `
+            <label class="recipe-check">
+              <input type="checkbox" name="recipeIds" value="${r.id}" ${(cook?.recipeIds || []).includes(r.id) ? 'checked' : ''}>
+              ${esc(r.name)} <span class="muted">(${esc(r.type)})</span>
+            </label>`).join('')}
+        </div>
+      </label>` : ''}
       <div class="form-row">
         <label class="field">Target grill temp (°F) <input name="targetGrillTemp" type="number" min="0" value="${cook?.targetGrillTemp ?? 250}"></label>
         <label class="field">Target internal temp (°F) <input name="targetInternalTemp" type="number" min="0" value="${cook?.targetInternalTemp ?? 203}"></label>
@@ -321,6 +370,7 @@ function openCookForm(cook = null) {
       pelletLbs: num(f.pelletLbs),
       targetGrillTemp: num(f.targetGrillTemp),
       targetInternalTemp: num(f.targetInternalTemp),
+      recipeIds: [...e.target.querySelectorAll('[name="recipeIds"]:checked')].map(cb => cb.value),
     };
     if (cook) {
       Cooks.update(cook.id, data);
@@ -353,7 +403,7 @@ function renderCookDetail(cookId) {
     <div class="view-header">
       <div>
         <h2>💨 ${esc(meat?.name || 'Unknown meat')} <span class="badge ${cook.status}">${cook.status}</span></h2>
-        <p class="sub">${esc(cook.method || '')} · ${fmtDate(cook.date)} · ${esc([cook.pelletBrand, cook.pelletFlavor].filter(Boolean).join(' — ') || 'pellets not logged')}${cook.pelletLbs ? ` · ${cook.pelletLbs} lbs pellets` : ''}</p>
+        <p class="sub">${esc(cook.method || '')} · ${fmtDate(cook.date)} · ${esc([cook.pelletBrand, cook.pelletFlavor].filter(Boolean).join(' — ') || 'pellets not logged')}${cook.pelletLbs ? ` · ${cook.pelletLbs} lbs pellets` : ''}${(cook.recipeIds || []).length ? ` · 🧂 ${esc((cook.recipeIds || []).map(rid => Recipes.get(rid)?.name).filter(Boolean).join(', '))}` : ''}</p>
       </div>
       <div class="flex">
         <button class="btn secondary small" id="back-cooks">← All smokes</button>
@@ -664,6 +714,138 @@ function renderCutLibrary() {
     toast(`${cut.name} added to Want to Try 🎯`, 'good');
     render();
   });
+}
+
+// ================= RUBS & SAUCES =================
+const RECIPE_TYPES = ['Rub', 'Sauce', 'Marinade', 'Brine', 'Glaze', 'Injection'];
+
+function renderRecipes() {
+  const recipes = [...Recipes.all()].sort((a, b) => (Recipes.avgScore(b) ?? -1) - (Recipes.avgScore(a) ?? -1));
+  const people = Settings.get().people;
+  const cooksUsing = id => Cooks.all().filter(c => (c.recipeIds || []).includes(id)).length;
+
+  container.innerHTML = `
+    <div class="view-header">
+      <div><h2>🧂 Rubs & Sauces</h2><p class="sub">Your recipe book — ingredients, measurements, and the crew's verdict on each</p></div>
+      <button class="btn" id="add-recipe">＋ New Recipe</button>
+    </div>
+    ${recipes.length ? `<div class="grid cols-2">
+      ${recipes.map(r => {
+        const avgScore = Recipes.avgScore(r);
+        const used = cooksUsing(r.id);
+        return `
+        <div class="card">
+          <div class="flex spread">
+            <h3>${esc(r.name)} <span class="badge try">${esc(r.type)}</span></h3>
+            <span class="flex">
+              ${scorePill(avgScore, (r.ratings || []).length)}
+              <button class="btn small secondary" data-edit-recipe="${r.id}">Edit</button>
+              <button class="btn small danger" data-del-recipe="${r.id}">✕</button>
+            </span>
+          </div>
+          ${(r.ingredients || []).length ? `
+            <table class="ingredients-table">
+              ${(r.ingredients || []).map(i => `<tr><td class="ing-amount">${esc(i.amount)}</td><td>${esc(i.item)}</td></tr>`).join('')}
+            </table>` : '<p class="muted">No ingredients listed yet.</p>'}
+          ${r.instructions ? `<p class="recipe-instructions">📋 ${esc(r.instructions)}</p>` : ''}
+          ${r.notes ? `<p class="muted" style="margin-top:.3rem">${esc(r.notes)}</p>` : ''}
+          ${used ? `<p class="muted" style="margin-top:.3rem">💨 Used on ${used} smoke${used > 1 ? 's' : ''}</p>` : ''}
+          <hr class="sep">
+          ${(r.ratings || []).map(x => `
+            <div class="flex spread" style="padding:.25rem 0;font-size:.85rem">
+              <span><strong>${esc(x.reviewer)}</strong> <span class="stars">${'★'.repeat(Math.round(x.score / 2))}</span> ${x.score}/10
+                ${x.comments ? `— <span class="muted">${esc(x.comments)}</span>` : ''}</span>
+              <button class="btn small ghost" data-del-rating="${r.id}:${x.id}">✕</button>
+            </div>`).join('')}
+          <form class="form" data-rating-form="${r.id}" style="margin-top:.4rem">
+            <div class="form-row">
+              <label class="field">Reviewer
+                <input name="reviewer" required list="people-list-r" placeholder="Who's rating?">
+              </label>
+              <label class="field">Score (1–10) <input name="score" type="number" min="1" max="10" step="0.5" required></label>
+            </div>
+            <label class="field">Comments <input name="comments" placeholder="Too salty? Perfect heat?"></label>
+            <div class="form-actions"><button class="btn small">Rate it</button></div>
+          </form>
+        </div>`;
+      }).join('')}
+    </div>
+    <datalist id="people-list-r">${people.map(p => `<option>${esc(p)}</option>`).join('')}</datalist>`
+    : '<div class="empty">No rubs or sauces yet. Save your secret recipes — ingredients, measurements, and all — and let the crew rate them.</div>'}`;
+
+  $('#add-recipe').onclick = () => openRecipeForm();
+  container.querySelectorAll('[data-edit-recipe]').forEach(b => b.onclick = () => openRecipeForm(Recipes.get(b.dataset.editRecipe)));
+  container.querySelectorAll('[data-del-recipe]').forEach(b => b.onclick = () => {
+    if (confirm('Delete this recipe and its ratings?')) { Recipes.remove(b.dataset.delRecipe); toast('Recipe deleted'); render(); }
+  });
+  container.querySelectorAll('[data-del-rating]').forEach(b => b.onclick = () => {
+    const [rid, ratingId] = b.dataset.delRating.split(':');
+    Recipes.removeRating(rid, ratingId); render();
+  });
+  container.querySelectorAll('[data-rating-form]').forEach(form => form.onsubmit = e => {
+    e.preventDefault();
+    const f = Object.fromEntries(new FormData(form));
+    Recipes.addRating(form.dataset.ratingForm, { reviewer: f.reviewer.trim(), score: Number(f.score), comments: f.comments });
+    const ppl = Settings.get().people;
+    if (f.reviewer.trim() && !ppl.includes(f.reviewer.trim())) Settings.update({ people: [...ppl, f.reviewer.trim()] });
+    toast('Rating added', 'good'); render();
+  });
+}
+
+function ingredientRowHtml(i = { item: '', amount: '' }) {
+  return `<div class="form-row ingredient-row">
+    <label class="field" style="flex:0 0 130px">Amount <input name="ing-amount" placeholder="2 tbsp" value="${esc(i.amount)}"></label>
+    <label class="field">Ingredient <input name="ing-item" placeholder="Smoked paprika" value="${esc(i.item)}"></label>
+    <button type="button" class="btn small ghost remove-ing" title="Remove" style="align-self:end">✕</button>
+  </div>`;
+}
+
+function openRecipeForm(recipe = null) {
+  const rows = (recipe?.ingredients?.length ? recipe.ingredients : [{}, {}, {}]).map(i => ingredientRowHtml(i)).join('');
+  openModal(`
+    <h3>${recipe ? 'Edit' : 'New'} Recipe</h3>
+    <form class="form" id="recipe-form">
+      <div class="form-row">
+        <label class="field">Name <input name="name" required placeholder="e.g. Sweet Heat Rib Rub" value="${esc(recipe?.name || '')}"></label>
+        <label class="field">Type
+          <select name="type">${RECIPE_TYPES.map(t => `<option ${recipe?.type === t ? 'selected' : ''}>${t}</option>`).join('')}</select>
+        </label>
+      </div>
+      <div id="ingredient-rows">${rows}</div>
+      <button type="button" class="btn small secondary" id="add-ingredient">＋ Add ingredient</button>
+      <label class="field">Instructions <textarea name="instructions" placeholder="Mix, rest, apply…">${esc(recipe?.instructions || '')}</textarea></label>
+      <label class="field">Notes <input name="notes" placeholder="Origin, tweaks to try…" value="${esc(recipe?.notes || '')}"></label>
+      <div class="form-actions">
+        <button type="button" class="btn secondary" id="cancel-modal">Cancel</button>
+        <button class="btn">${recipe ? 'Save' : 'Add Recipe'}</button>
+      </div>
+    </form>`);
+  $('#cancel-modal').onclick = closeModal;
+  const rowsBox = $('#ingredient-rows');
+  const bindRemove = () => rowsBox.querySelectorAll('.remove-ing').forEach(b => b.onclick = () => b.parentElement.remove());
+  bindRemove();
+  $('#add-ingredient').onclick = () => {
+    rowsBox.insertAdjacentHTML('beforeend', ingredientRowHtml());
+    bindRemove();
+  };
+  $('#recipe-form').onsubmit = e => {
+    e.preventDefault();
+    const form = e.target;
+    const ingredients = [...rowsBox.querySelectorAll('.ingredient-row')].map(row => ({
+      amount: row.querySelector('[name="ing-amount"]').value.trim(),
+      item: row.querySelector('[name="ing-item"]').value.trim(),
+    })).filter(i => i.item);
+    const data = {
+      name: form.name.value.trim(),
+      type: form.type.value,
+      ingredients,
+      instructions: form.instructions.value.trim(),
+      notes: form.notes.value.trim(),
+    };
+    if (recipe) { Recipes.update(recipe.id, data); toast('Recipe updated', 'good'); }
+    else { Recipes.add(data); toast('Recipe added', 'good'); }
+    closeModal(); render();
+  };
 }
 
 // ================= VENDORS =================

@@ -10,6 +10,9 @@ const emptyDb = () => ({
                   //  startTime, endTime, status, notes}
   reviews: [],    // {id, cookId, reviewer, score, comments, date}
   checklist: [],  // {id, name, status: 'love'|'try'|'tried', notes}
+  recipes: [],    // {id, name, type: 'Rub'|'Sauce'|'Marinade'|'Brine'|'Glaze'|'Injection',
+                  //  ingredients: [{item, amount}], instructions, notes,
+                  //  ratings: [{id, reviewer, score, comments, date}]}
   settings: { apiKey: '', model: 'claude-opus-4-8', people: [] },
 });
 
@@ -134,6 +137,35 @@ export const Reviews = {
   },
 };
 
+export const Recipes = {
+  all: () => db.recipes,
+  get: id => get('recipes', id),
+  add: r => add('recipes', { ratings: [], ingredients: [], ...r }),
+  update: (id, p) => update('recipes', id, p),
+  remove: id => {
+    db.cooks.forEach(c => { if (c.recipeIds) c.recipeIds = c.recipeIds.filter(rid => rid !== id); });
+    remove('recipes', id);
+  },
+  addRating: (recipeId, rating) => {
+    const r = get('recipes', recipeId);
+    if (!r) return;
+    r.ratings = r.ratings || [];
+    r.ratings.push({ id: uid(), date: new Date().toISOString().slice(0, 10), ...rating });
+    save();
+  },
+  removeRating: (recipeId, ratingId) => {
+    const r = get('recipes', recipeId);
+    if (!r) return;
+    r.ratings = (r.ratings || []).filter(x => x.id !== ratingId);
+    save();
+  },
+  avgScore: recipe => {
+    const rs = recipe?.ratings || [];
+    if (!rs.length) return null;
+    return rs.reduce((s, r) => s + Number(r.score), 0) / rs.length;
+  },
+};
+
 export const Checklist = {
   all: () => db.checklist,
   add: c => add('checklist', c),
@@ -185,8 +217,22 @@ export function loadDemoData() {
     readings.push({ ts, probeId: flat.id, temp: Math.min(203, 45 + i * 14 + (i > 6 ? -8 : 0)) });
     readings.push({ ts, probeId: point.id, temp: Math.min(205, 45 + i * 15 + (i > 6 ? -6 : 0)) });
   }
+  const rub1 = {
+    id: uid(), name: 'Texas Brisket Rub', type: 'Rub',
+    ingredients: [
+      { item: 'Coarse black pepper (16 mesh)', amount: '1/2 cup' },
+      { item: 'Kosher salt', amount: '1/2 cup' },
+      { item: 'Garlic powder', amount: '2 tbsp' },
+    ],
+    instructions: 'Mix well. Apply a heavy, even coat 1 hour before the meat goes on.',
+    notes: 'Classic 50/50 salt & pepper base with a garlic kick.',
+    ratings: [
+      { id: uid(), reviewer: 'Mac', score: 9, comments: 'Perfect bark builder.', date: new Date(start + 14 * h).toISOString().slice(0, 10) },
+    ],
+  };
   const c1 = {
     id: uid(), meatId: m1.id, date: new Date(start).toISOString().slice(0, 10),
+    recipeIds: [rub1.id],
     method: 'Low & Slow', pelletBrand: 'Lumber Jack', pelletFlavor: 'Oak/Hickory blend', pelletLbs: 16,
     targetGrillTemp: 250, targetInternalTemp: 203,
     probes: [grill, flat, point], readings,
@@ -207,6 +253,7 @@ export function loadDemoData() {
     { id: uid(), name: 'Smoked Turkey Breast', status: 'try', notes: 'For Thanksgiving' },
   ];
   db.vendors.push(v1, v2);
+  db.recipes.push(rub1);
   db.meats.push(m1, m2);
   db.cooks.push(c1);
   db.reviews.push(r1, r2);
