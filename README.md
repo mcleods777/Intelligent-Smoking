@@ -46,8 +46,8 @@ A reference of 10 smoke woods (post oak, hickory, cherry, alder, …) with stren
 ### 🗓️ Cook Planner
 Pick a cut, weight, and serving time — the planner works backward through rest, cook hours, fire-up, seasoning/dry-brine, and thaw dates, then saves the whole schedule as a planned smoke.
 
-### 📤 Shareable Cook Cards
-One click renders a smoke into a polished PNG — meat, date, method and pellet chips, crew score, photo, and the full temperature chart — ready to text to the crew.
+### 📤 Shareable Cook Cards (social media ready)
+One click renders a smoke into a polished PNG — meat, date, method and pellet chips, crew score, photo, and the full temperature chart. On phones and tablets it opens the native share sheet with a pre-written caption, so you can post directly to Instagram, Facebook, X, or a group chat. On desktop it copies the image to your clipboard (paste straight into a post) and downloads it.
 
 ### 📥 Thermometer CSV Import
 Import CSV exports from Meater, Fireboard, ThermoWorks, or any logger. The first column is time (ISO, epoch, or elapsed), and each temperature column becomes its own probe automatically.

@@ -873,12 +873,40 @@ function renderCookDetail(cookId) {
     try {
       const photos = await getPhotos(cook.photoIds || []);
       const blob = await renderShareCard(cook, photos[0]?.dataUrl);
+      const filename = `smoke-${(meat?.name || 'cook').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${cook.date || 'card'}.png`;
+      const scoreBit = avgScore != null ? ` — ${round1(avgScore)}/10 crew score` : '';
+      const shareText = `${meat?.name || 'A smoke'}${scoreBit}, ${cook.method || 'smoked'} on the pellet grill 🔥 #BBQ`;
+
+      // 1) Native share sheet (phones/tablets): post straight to Instagram,
+      //    Facebook, X, Messages, etc.
+      const file = new File([blob], filename, { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: 'Smoker AI', text: shareText });
+          toast('Shared 📤', 'good');
+          return;
+        } catch (err) {
+          if (err.name === 'AbortError') return; // user closed the sheet
+          // fall through to clipboard/download
+        }
+      }
+
+      // 2) Desktop fallback: copy to clipboard (paste into any post) + download
+      let copied = false;
+      try {
+        if (navigator.clipboard?.write && window.ClipboardItem) {
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+          copied = true;
+        }
+      } catch { /* clipboard unavailable — download still happens */ }
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `smoke-${(meat?.name || 'cook').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${cook.date || 'card'}.png`;
+      a.download = filename;
       a.click();
       URL.revokeObjectURL(a.href);
-      toast('Share card downloaded 📤', 'good');
+      toast(copied
+        ? 'Card downloaded + copied to clipboard — paste it straight into your post 📤'
+        : 'Share card downloaded 📤', 'good');
     } catch (err) {
       toast(`Could not render card: ${err.message}`, 'bad');
     } finally {
