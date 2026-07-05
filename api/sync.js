@@ -9,14 +9,28 @@
 // leaves the device, and without it neither the key nor the data URL is
 // guessable.
 
-const REST_URL =
-  process.env.KV_REST_API_URL ||
-  process.env.UPSTASH_REDIS_REST_URL ||
-  process.env.REDIS_REST_API_URL;
-const REST_TOKEN =
-  process.env.KV_REST_API_TOKEN ||
-  process.env.UPSTASH_REDIS_REST_TOKEN ||
-  process.env.REDIS_REST_API_TOKEN;
+// The integration's env var names depend on how it was connected (and any
+// custom prefix chosen), so try the common names first, then fall back to
+// scanning for any <PREFIX>..._URL/_TOKEN REST pair pointing at Upstash.
+function findCredentials() {
+  const env = process.env;
+  const pairs = [
+    ['KV_REST_API_URL', 'KV_REST_API_TOKEN'],
+    ['UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN'],
+    ['REDIS_REST_API_URL', 'REDIS_REST_API_TOKEN'],
+  ];
+  for (const [u, t] of pairs) {
+    if (env[u] && env[t]) return { url: env[u], token: env[t] };
+  }
+  for (const name of Object.keys(env)) {
+    const m = name.match(/^(.*)(_REST_API_URL|_REST_URL)$/);
+    if (!m || !/^https:\/\//.test(env[name])) continue;
+    const token = env[`${m[1]}${m[2].replace('_URL', '_TOKEN')}`] || env[`${m[1]}_REST_API_TOKEN`];
+    if (token) return { url: env[name], token };
+  }
+  return { url: null, token: null };
+}
+const { url: REST_URL, token: REST_TOKEN } = findCredentials();
 
 const KEY_RE = /^[a-f0-9]{64}$/;
 const MAX_BYTES = 3.5 * 1024 * 1024; // stay under serverless body limits
@@ -37,6 +51,9 @@ module.exports = async (req, res) => {
   if (!REST_URL || !REST_TOKEN) {
     res.status(503).json({
       error: 'Sync storage is not configured. In the Vercel dashboard: project → Storage → Create Database → Redis (Upstash), connect it to this project, then redeploy.',
+      // Names only (never values) of storage-looking env vars, to diagnose
+      // integrations that inject credentials under unexpected names.
+      envHint: Object.keys(process.env).filter(k => /REDIS|UPSTASH|KV_|STORAGE/i.test(k)),
     });
     return;
   }
