@@ -1704,6 +1704,17 @@ function renderSettings() {
 // ---------- first run ----------
 render();
 initSync(() => { toast('Journal updated from the cloud ☁️', 'good'); render(); });
+
+// offline support: register the service worker (network-first, so online
+// visits always get the latest deploy; offline opens work from cache)
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => { /* e.g. file:// — ignore */ });
+}
+window.addEventListener('offline', () => toast('📡 Offline — the app keeps working; sync will catch up when you\'re back', ''));
+window.addEventListener('online', () => {
+  toast('📶 Back online', 'good');
+  pullNow().catch(() => { /* status set by sync module */ });
+});
 onSyncStatus(s => {
   const el = document.getElementById('sync-status-line');
   if (el) el.textContent = syncStatusText(s);

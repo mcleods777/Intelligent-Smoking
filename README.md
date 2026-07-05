@@ -55,6 +55,9 @@ Import CSV exports from Meater, Fireboard, ThermoWorks, or any logger. The first
 ### 🌲 Pellet Tracking
 Log every bag of pellets — brand, flavor/wood, pounds, price, vendor, and your quality rating. The page shows totals (pounds purchased, spent, blended $/lb), estimated pounds on hand (purchased minus burned in your smokes), and a Brand Report Card combining your quality ratings with the crew scores of cooks that used each brand. Logged purchases feed the cost-per-serving math with your real blended $/lb, and autocomplete the pellet fields on new smokes.
 
+### 📡 Offline Support
+The app installs a service worker that keeps a complete copy of itself (including the Cut Library photos) on your device. No signal at the campsite? It still opens instantly, shows all your data, and lets you log temps, actions, photos, and reviews — sync catches up automatically when you're back online. The worker is network-first: whenever you *do* have a connection, you always get the latest deployed version, never a stale cache.
+
 ### ☁️ Cross-Device Sync
 Share one journal across phone, tablet, and desktop. Pick a household passphrase in Settings → Cross-Device Sync and enter the same one on every device: changes push automatically a few seconds after you make them, and devices pull on load and when you return to the tab (newest save wins). The passphrase never leaves your device — it's hashed locally into the sync key. Photos and your API key stay per-device. Requires one-time setup: in the Vercel dashboard, project → Storage → Create Database → Redis (Upstash), connect it, redeploy.
 
@@ -102,5 +105,6 @@ js/photos.js    photo journal storage (IndexedDB) + compression
 js/share.js     shareable cook-card renderer (canvas -> PNG)
 js/sync.js      cross-device sync client (passphrase-keyed, newest-wins)
 api/sync.js     Vercel serverless sync endpoint (Redis-backed)
+sw.js           service worker: offline support (network-first + full precache)
 assets/cuts/    cut photos (Wikimedia Commons, see ATTRIBUTIONS.md)
 ```
