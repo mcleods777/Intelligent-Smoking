@@ -28,6 +28,18 @@ function findCredentials() {
     const token = env[`${m[1]}${m[2].replace('_URL', '_TOKEN')}`] || env[`${m[1]}_REST_API_TOKEN`];
     if (token) return { url: env[name], token };
   }
+  // Some connection flows inject only a redis(s):// connection string
+  // (e.g. REDIS_URL). For Upstash, the REST endpoint is https://<host>
+  // and the REST token is the connection password.
+  for (const name of Object.keys(env)) {
+    if (!/^rediss?:\/\//.test(env[name] || '')) continue;
+    try {
+      const u = new URL(env[name]);
+      if (!/^rediss?:$/.test(u.protocol) || !u.hostname || !u.password) continue;
+      if (!/\.upstash\.io$/.test(u.hostname)) continue;
+      return { url: `https://${u.hostname}`, token: u.password };
+    } catch { /* not a URL — keep scanning */ }
+  }
   return { url: null, token: null };
 }
 const { url: REST_URL, token: REST_TOKEN } = findCredentials();
