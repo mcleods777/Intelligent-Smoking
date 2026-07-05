@@ -63,9 +63,19 @@ module.exports = async (req, res) => {
   if (!REST_URL || !REST_TOKEN) {
     res.status(503).json({
       error: 'Sync storage is not configured. In the Vercel dashboard: project → Storage → Create Database → Redis (Upstash), connect it to this project, then redeploy.',
-      // Names only (never values) of storage-looking env vars, to diagnose
-      // integrations that inject credentials under unexpected names.
-      envHint: Object.keys(process.env).filter(k => /REDIS|UPSTASH|KV_|STORAGE/i.test(k)),
+      // Shape only (never secrets) of storage-looking env vars, to diagnose
+      // integrations that inject credentials under unexpected names/formats.
+      envHint: Object.keys(process.env)
+        .filter(k => /REDIS|UPSTASH|KV_|STORAGE/i.test(k))
+        .map(k => {
+          const v = process.env[k] || '';
+          try {
+            const u = new URL(v);
+            return `${k}: ${u.protocol}//${u.username ? '<user>' : ''}${u.password ? ':<pw>' : ''}@${u.hostname}:${u.port}`;
+          } catch {
+            return `${k}: unparseable (${v.length} chars, starts "${v.slice(0, 3)}")`;
+          }
+        }),
     });
     return;
   }
