@@ -15,7 +15,9 @@ const emptyDb = () => ({
   recipes: [],    // {id, name, type: 'Rub'|'Sauce'|'Marinade'|'Brine'|'Glaze'|'Injection',
                   //  ingredients: [{item, amount}], instructions, notes,
                   //  ratings: [{id, reviewer, score, comments, date}]}
-  settings: { apiKey: '', model: 'claude-opus-4-8', people: [], pelletPricePerLb: 1.0 },
+  pellets: [],    // {id, brand, flavor, weightLbs, price, vendorId, qualityRating, purchaseDate, notes}
+  meta: { updatedAt: 0 },
+  settings: { apiKey: '', model: 'claude-opus-4-8', people: [], pelletPricePerLb: 1.0, syncPassphrase: '', syncEnabled: false },
 });
 
 let db = load();
@@ -31,8 +33,13 @@ function load() {
   }
 }
 
-function save() {
+const changeListeners = [];
+export function onDbChange(cb) { changeListeners.push(cb); }
+
+function save(silent = false) {
+  if (!silent) db.meta = { updatedAt: Date.now() };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+  if (!silent) changeListeners.forEach(cb => { try { cb(); } catch { /* ignore */ } });
 }
 
 export const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -168,6 +175,22 @@ export const Recipes = {
   },
 };
 
+export const Pellets = {
+  all: () => db.pellets,
+  get: id => get('pellets', id),
+  add: p => add('pellets', p),
+  update: (id, p) => update('pellets', id, p),
+  remove: id => remove('pellets', id),
+  // blended real-world $/lb across all purchases (null if none logged)
+  blendedPricePerLb: () => {
+    const ps = db.pellets.filter(p => p.price > 0 && p.weightLbs > 0);
+    if (!ps.length) return null;
+    const lbs = ps.reduce((s, p) => s + Number(p.weightLbs), 0);
+    const cost = ps.reduce((s, p) => s + Number(p.price), 0);
+    return lbs ? cost / lbs : null;
+  },
+};
+
 export const Checklist = {
   all: () => db.checklist,
   add: c => add('checklist', c),
@@ -178,11 +201,14 @@ export const Checklist = {
 export const Settings = {
   get: () => db.settings,
   update: p => { Object.assign(db.settings, p); save(); },
+  // device-local settings (sync credentials): saved without stamping the
+  // journal as modified and without notifying sync listeners
+  updateLocal: p => { Object.assign(db.settings, p); save(true); },
 };
 
 // ---- export / import / reset ----
 export function exportJson() {
-  const data = { ...db, settings: { ...db.settings, apiKey: '' } }; // never export the key
+  const data = { ...db, settings: { ...db.settings, apiKey: '', syncPassphrase: '' } }; // never export secrets
   return JSON.stringify(data, null, 2);
 }
 export function importJson(text) {
@@ -198,6 +224,23 @@ export function importJson(text) {
 export function resetDb() {
   db = emptyDb();
   save();
+}
+
+// ---- cross-device sync helpers ----
+/** Snapshot for the sync server: full db minus device-local secrets. */
+export function syncSnapshot() {
+  return { ...db, settings: { ...db.settings, apiKey: '', syncPassphrase: '' } };
+}
+/** Adopt a remote snapshot, keeping this device's secrets. Does not notify change listeners. */
+export function adoptRemoteDb(remote) {
+  const keepApiKey = db.settings.apiKey;
+  const keepPass = db.settings.syncPassphrase;
+  const keepEnabled = db.settings.syncEnabled;
+  db = { ...emptyDb(), ...remote, settings: { ...emptyDb().settings, ...(remote.settings || {}) } };
+  db.settings.apiKey = keepApiKey;
+  db.settings.syncPassphrase = keepPass;
+  db.settings.syncEnabled = keepEnabled;
+  save(true); // silent: don't re-trigger a push
 }
 
 // ---- demo data so the app isn't empty on first run ----
@@ -256,6 +299,11 @@ export function loadDemoData() {
   ];
   db.vendors.push(v1, v2);
   db.recipes.push(rub1);
+  db.pellets.push({
+    id: uid(), brand: 'Lumber Jack', flavor: 'Oak/Hickory blend', weightLbs: 20, price: 19.99,
+    vendorId: v1.id, qualityRating: 9, purchaseDate: new Date(now - 120 * h).toISOString().slice(0, 10),
+    notes: 'Low ash, great smoke ring',
+  });
   db.meats.push(m1, m2);
   db.cooks.push(c1);
   db.reviews.push(r1, r2);

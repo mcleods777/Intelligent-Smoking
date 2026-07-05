@@ -4,7 +4,7 @@
 //   2. Claude API — optional, plug in an API key in Settings for
 //      conversational analysis and richer suggestions.
 
-import { getDb, Meats, Vendors, Reviews, Recipes, Settings } from './store.js';
+import { getDb, Meats, Vendors, Reviews, Recipes, Pellets, Settings } from './store.js';
 
 const fmt = n => (Math.round(n * 100) / 100).toLocaleString();
 const money = n => '$' + (Math.round(n * 100) / 100).toFixed(2);
@@ -101,6 +101,27 @@ export function computeInsights() {
     });
   }
 
+  // --- Pellet economics ---
+  const pelletBags = db.pellets.filter(p => p.price > 0 && p.weightLbs > 0);
+  if (pelletBags.length) {
+    const byBrand = groupBy(pelletBags, p => (p.brand || 'Unknown').trim());
+    const brandStats = Object.entries(byBrand).map(([name, ps]) => ({
+      name,
+      perLb: sum(ps.map(p => p.price)) / sum(ps.map(p => p.weightLbs)),
+      quality: avg(ps.filter(p => p.qualityRating).map(p => Number(p.qualityRating))) || null,
+    }));
+    const cheapest = [...brandStats].sort((a, b) => a.perLb - b.perLb)[0];
+    const bestValue = [...brandStats].filter(b => b.quality).sort((a, b) => (b.quality / b.perLb) - (a.quality / a.perLb))[0];
+    insights.push({
+      icon: '🌲', title: 'Pellet Economics',
+      lines: [
+        `You've bought **${fmt(sum(pelletBags.map(p => Number(p.weightLbs))))} lbs** of pellets for **${money(sum(pelletBags.map(p => Number(p.price))))}** (${money(Pellets.blendedPricePerLb())}/lb blended).`,
+        cheapest ? `Cheapest per pound: **${cheapest.name}** at **${money(cheapest.perLb)}/lb**.` : null,
+        bestValue ? `Best quality-per-dollar: **${bestValue.name}** — ${fmt(bestValue.quality)}/10 quality at ${money(bestValue.perLb)}/lb.` : null,
+      ].filter(Boolean),
+    });
+  }
+
   // --- Rub & sauce performance ---
   const ratedRecipes = db.recipes
     .map(r => ({ r, avg: Recipes.avgScore(r) }))
@@ -142,7 +163,7 @@ export function computeInsights() {
   }
 
   // --- Cost per serving ---
-  const pelletPricePerLb = Number(db.settings.pelletPricePerLb) || 0;
+  const pelletPricePerLb = Pellets.blendedPricePerLb() ?? (Number(db.settings.pelletPricePerLb) || 0);
   const costed = doneCooks.map(c => {
     const meat = Meats.get(c.meatId);
     const cost = (Number(meat?.price) || 0) + (Number(c.pelletLbs) || 0) * pelletPricePerLb;
@@ -233,7 +254,7 @@ export function analyzeCook(cook) {
     if (hrs > 0) lines.push(`Pellet burn rate: **${fmt(cook.pelletLbs / hrs)} lbs/hr** (${cook.pelletLbs} lbs of ${cook.pelletBrand || 'pellets'} total).`);
   }
   // cost breakdown: meat + pellets, per serving when guest count is logged
-  const pelletPrice = Number(Settings.get().pelletPricePerLb) || 0;
+  const pelletPrice = Pellets.blendedPricePerLb() ?? (Number(Settings.get().pelletPricePerLb) || 0);
   const meatCost = Number(meat?.price) || 0;
   const pelletCost = (Number(cook.pelletLbs) || 0) * pelletPrice;
   const totalCost = meatCost + pelletCost;
@@ -281,7 +302,8 @@ function buildContext() {
     avgRating: Recipes.avgScore(r),
     ratings: (r.ratings || []).map(x => ({ reviewer: x.reviewer, score: x.score, comments: x.comments })),
   }));
-  return JSON.stringify({ meats, cooks, recipes, checklist: db.checklist, vendors: db.vendors }, null, 1);
+  const pellets = db.pellets.map(p => ({ ...p, vendor: Vendors.get(p.vendorId)?.name }));
+  return JSON.stringify({ meats, cooks, recipes, pelletPurchases: pellets, checklist: db.checklist, vendors: db.vendors }, null, 1);
 }
 
 function thin(arr, max) {
@@ -298,7 +320,7 @@ export async function askClaude(question) {
 
   const system = [
     'You are Smoker AI, a pitmaster-grade BBQ analyst embedded in a meat-smoking journal app.',
-    'You receive the user\'s full smoking journal as JSON: meats purchased (with price, weight, grade, vendor, quality rating), smoke sessions (method, pellets, target temps, multi-probe temperature readings, timestamped actions), multi-person reviews with scores out of 10, a love/want-to-try checklist, and vendors.',
+    'You receive the user\'s full smoking journal as JSON: meats purchased (with price, weight, grade, vendor, quality rating), smoke sessions (method, pellets, target temps, multi-probe temperature readings, timestamped actions), multi-person reviews with scores out of 10, rub/sauce recipes with ratings, pellet purchases (brand, flavor, pounds, price, quality), a love/want-to-try checklist, and vendors.',
     'Give specific, data-grounded analysis and practical suggestions: what to smoke next, how to improve technique, temperature management, pellet choices, and where to buy economically. Reference their actual data (names, scores, prices, temps). Be concise and use short paragraphs or bullet lists. Plain text only, no markdown headers.',
   ].join(' ');
 

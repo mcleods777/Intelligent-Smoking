@@ -1,7 +1,7 @@
 // ============ Smoker AI — application UI ============
 
 import {
-  getDb, Meats, Vendors, Cooks, Reviews, Checklist, Recipes, Settings,
+  getDb, Meats, Vendors, Cooks, Reviews, Checklist, Recipes, Pellets, Settings,
   exportJson, importJson, resetDb, loadDemoData,
 } from './store.js';
 import { drawTempChart } from './charts.js';
@@ -11,6 +11,7 @@ import { WOOD_GUIDE } from './woods.js';
 import { compressPhoto, savePhoto, getPhotos, deletePhoto } from './photos.js';
 import { renderShareCard } from './share.js';
 import { uid } from './store.js';
+import { initSync, enableSync, disableSync, pushNow, pullNow, syncStatus, onSyncStatus } from './sync.js';
 
 // ---------- tiny helpers ----------
 const $ = sel => document.querySelector(sel);
@@ -117,6 +118,7 @@ function render() {
     checklist: renderChecklist,
     cutlibrary: renderCutLibrary,
     recipes: renderRecipes,
+    pellets: renderPellets,
     vendors: renderVendors,
     insights: renderInsights,
     settings: renderSettings,
@@ -378,8 +380,14 @@ function openCookForm(cook = null) {
         </label>
       </div>
       <div class="form-row">
-        <label class="field">Pellet brand <input name="pelletBrand" placeholder="Lumber Jack, Traeger…" value="${esc(cook?.pelletBrand || '')}"></label>
-        <label class="field">Pellet flavor <input name="pelletFlavor" placeholder="Hickory, Cherry…" value="${esc(cook?.pelletFlavor || '')}"></label>
+        <label class="field">Pellet brand
+          <input name="pelletBrand" list="cook-pellet-brands" placeholder="Lumber Jack, Traeger…" value="${esc(cook?.pelletBrand || '')}">
+          <datalist id="cook-pellet-brands">${[...new Set(Pellets.all().map(p => p.brand).filter(Boolean))].map(b => `<option>${esc(b)}</option>`).join('')}</datalist>
+        </label>
+        <label class="field">Pellet flavor
+          <input name="pelletFlavor" list="cook-pellet-flavors" placeholder="Hickory, Cherry…" value="${esc(cook?.pelletFlavor || '')}">
+          <datalist id="cook-pellet-flavors">${[...new Set(Pellets.all().map(p => p.flavor).filter(Boolean))].map(f => `<option>${esc(f)}</option>`).join('')}</datalist>
+        </label>
         <label class="field">Pellets used (lbs) <input name="pelletLbs" type="number" step="0.5" min="0" value="${cook?.pelletLbs ?? ''}"></label>
       </div>
       ${Recipes.all().length ? `
@@ -1307,6 +1315,138 @@ function openRecipeForm(recipe = null) {
   };
 }
 
+// ================= PELLETS =================
+function renderPellets() {
+  const pellets = [...Pellets.all()].sort((a, b) => (b.purchaseDate || '').localeCompare(a.purchaseDate || ''));
+  const totalLbs = pellets.reduce((s, p) => s + (Number(p.weightLbs) || 0), 0);
+  const totalSpent = pellets.reduce((s, p) => s + (Number(p.price) || 0), 0);
+  const blended = Pellets.blendedPricePerLb();
+  const burned = Cooks.all().reduce((s, c) => s + (Number(c.pelletLbs) || 0), 0);
+
+  // per-brand rollup: bags, lbs, spend, your quality rating, and cook scores where used
+  const brands = {};
+  for (const p of pellets) {
+    const key = (p.brand || 'Unknown').trim();
+    brands[key] = brands[key] || { lbs: 0, spent: 0, q: [], n: 0 };
+    brands[key].lbs += Number(p.weightLbs) || 0;
+    brands[key].spent += Number(p.price) || 0;
+    if (p.qualityRating) brands[key].q.push(Number(p.qualityRating));
+    brands[key].n++;
+  }
+  const brandRows = Object.entries(brands).map(([name, b]) => {
+    const cookScores = Cooks.all()
+      .filter(c => c.status === 'done' && (c.pelletBrand || '').toLowerCase().includes(name.toLowerCase()))
+      .map(c => Reviews.avgForCook(c.id)).filter(v => v != null);
+    return {
+      name, ...b,
+      perLb: b.lbs ? b.spent / b.lbs : null,
+      quality: b.q.length ? b.q.reduce((s, x) => s + x, 0) / b.q.length : null,
+      cookAvg: cookScores.length ? cookScores.reduce((s, x) => s + x, 0) / cookScores.length : null,
+      cooks: cookScores.length,
+    };
+  }).sort((a, b) => (b.cookAvg ?? b.quality ?? 0) - (a.cookAvg ?? a.quality ?? 0));
+
+  container.innerHTML = `
+    <div class="view-header">
+      <div><h2>🌲 Pellets</h2><p class="sub">Every bag you buy — brand, quality, cost, and how it performs on the pit</p></div>
+      <button class="btn" id="add-pellet">＋ Log a Bag</button>
+    </div>
+    <div class="grid cols-4 mb">
+      <div class="card"><h3>⚖️ Purchased</h3><div class="big">${round1(totalLbs)} lbs</div><div class="hint">${pellets.length} bag${pellets.length === 1 ? '' : 's'} logged</div></div>
+      <div class="card"><h3>💰 Spent</h3><div class="big">${money(totalSpent)}</div><div class="hint">${blended ? money(blended) + '/lb blended' : 'log prices to track'}</div></div>
+      <div class="card"><h3>🔥 Burned</h3><div class="big">${round1(burned)} lbs</div><div class="hint">across all smoke sessions</div></div>
+      <div class="card"><h3>🏠 On Hand (est.)</h3><div class="big">${round1(Math.max(0, totalLbs - burned))} lbs</div><div class="hint">purchased minus burned</div></div>
+    </div>
+    ${brandRows.length ? `
+    <div class="card mb">
+      <h3>🏷️ Brand Report Card</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Brand</th><th>Bags</th><th>Lbs</th><th>$/lb</th><th>Your Quality</th><th>Cook Score</th></tr></thead>
+        <tbody>${brandRows.map(b => `<tr>
+          <td><strong>${esc(b.name)}</strong></td>
+          <td>${b.n}</td>
+          <td>${round1(b.lbs)}</td>
+          <td>${b.perLb ? money(b.perLb) : '—'}</td>
+          <td>${b.quality ? round1(b.quality) + '/10' : '—'}</td>
+          <td>${b.cookAvg ? `${scorePill(b.cookAvg, b.cooks)}` : '<span class="muted">no rated cooks yet</span>'}</td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+    </div>` : ''}
+    ${pellets.length ? `<div class="table-wrap"><table>
+      <thead><tr><th>Brand</th><th>Flavor</th><th>Weight</th><th>Price</th><th>$/lb</th><th>Quality</th><th>Vendor</th><th>Purchased</th><th></th></tr></thead>
+      <tbody>${pellets.map(p => {
+        const perLb = p.price && p.weightLbs ? money(p.price / p.weightLbs) : '—';
+        return `<tr>
+          <td><strong>${esc(p.brand || '—')}</strong>${p.notes ? `<br><span class="muted">${esc(p.notes)}</span>` : ''}</td>
+          <td>${esc(p.flavor || '—')}</td>
+          <td>${p.weightLbs ? p.weightLbs + ' lbs' : '—'}</td>
+          <td>${p.price ? money(p.price) : '—'}</td>
+          <td>${perLb}</td>
+          <td>${p.qualityRating ? p.qualityRating + '/10' : '—'}</td>
+          <td>${esc(Vendors.get(p.vendorId)?.name || '—')}</td>
+          <td>${fmtDate(p.purchaseDate)}</td>
+          <td class="flex">
+            <button class="btn small secondary" data-edit-pellet="${p.id}">Edit</button>
+            <button class="btn small danger" data-del-pellet="${p.id}">✕</button>
+          </td></tr>`;
+      }).join('')}</tbody></table></div>`
+    : '<div class="empty">No pellet purchases logged yet. Track each bag — brand, flavor, pounds, price, and your quality rating — and the app tells you which pellets earn their price.</div>'}`;
+
+  $('#add-pellet').onclick = () => openPelletForm();
+  container.querySelectorAll('[data-edit-pellet]').forEach(b => b.onclick = () => openPelletForm(Pellets.get(b.dataset.editPellet)));
+  container.querySelectorAll('[data-del-pellet]').forEach(b => b.onclick = () => {
+    if (confirm('Delete this pellet purchase?')) { Pellets.remove(b.dataset.delPellet); toast('Purchase deleted'); render(); }
+  });
+}
+
+function openPelletForm(pellet = null) {
+  const vendors = Vendors.all();
+  const knownBrands = [...new Set(Pellets.all().map(p => p.brand).filter(Boolean))];
+  const knownFlavors = [...new Set(Pellets.all().map(p => p.flavor).filter(Boolean))];
+  openModal(`
+    <h3>${pellet ? 'Edit' : 'Log'} Pellet Purchase</h3>
+    <form class="form" id="pellet-form">
+      <div class="form-row">
+        <label class="field">Brand
+          <input name="brand" required list="pellet-brands" placeholder="Lumber Jack, Traeger, Bear Mountain…" value="${esc(pellet?.brand || '')}">
+          <datalist id="pellet-brands">${knownBrands.map(b => `<option>${esc(b)}</option>`).join('')}</datalist>
+        </label>
+        <label class="field">Flavor / wood
+          <input name="flavor" list="pellet-flavors" placeholder="Hickory, Oak, Competition blend…" value="${esc(pellet?.flavor || '')}">
+          <datalist id="pellet-flavors">${knownFlavors.map(f => `<option>${esc(f)}</option>`).join('')}</datalist>
+        </label>
+      </div>
+      <div class="form-row">
+        <label class="field">Weight (lbs) <input name="weightLbs" type="number" step="0.5" min="0" required value="${pellet?.weightLbs ?? 20}"></label>
+        <label class="field">Price ($) <input name="price" type="number" step="0.01" min="0" value="${pellet?.price ?? ''}"></label>
+        <label class="field">Quality (1–10) <input name="qualityRating" type="number" min="1" max="10" step="0.5" value="${pellet?.qualityRating ?? ''}"></label>
+      </div>
+      <div class="form-row">
+        <label class="field">Vendor
+          <select name="vendorId">
+            <option value="">— none —</option>
+            ${vendors.map(v => `<option value="${v.id}" ${pellet?.vendorId === v.id ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}
+          </select>
+        </label>
+        <label class="field">Purchase date <input name="purchaseDate" type="date" value="${pellet?.purchaseDate || new Date().toISOString().slice(0, 10)}"></label>
+      </div>
+      <label class="field">Notes <input name="notes" placeholder="Ash output, dust in the bag, smoke flavor…" value="${esc(pellet?.notes || '')}"></label>
+      <div class="form-actions">
+        <button type="button" class="btn secondary" id="cancel-modal">Cancel</button>
+        <button class="btn">${pellet ? 'Save' : 'Log Purchase'}</button>
+      </div>
+    </form>`);
+  $('#cancel-modal').onclick = closeModal;
+  $('#pellet-form').onsubmit = e => {
+    e.preventDefault();
+    const f = Object.fromEntries(new FormData(e.target));
+    const data = { ...f, weightLbs: num(f.weightLbs), price: num(f.price), qualityRating: num(f.qualityRating) };
+    if (pellet) { Pellets.update(pellet.id, data); toast('Purchase updated', 'good'); }
+    else { Pellets.add(data); toast('Pellet purchase logged 🌲', 'good'); }
+    closeModal(); render();
+  };
+}
+
 // ================= VENDORS =================
 function renderVendors() {
   const vendors = Vendors.all();
@@ -1461,6 +1601,22 @@ function renderSettings() {
         </form>
       </div>
       <div class="card">
+        <h3>☁️ Cross-Device Sync</h3>
+        <p class="muted mb">Share one journal across your phone, tablet, and desktop. Pick a household passphrase and enter the same one on every device — the newest save wins everywhere. Photos and your API key stay on each device.</p>
+        <form class="form" id="sync-form">
+          <label class="field">Household passphrase
+            <input name="passphrase" type="password" placeholder="e.g. brisket-crew-2026" value="${esc(s.syncPassphrase || '')}" ${s.syncEnabled ? 'disabled' : ''}>
+          </label>
+          <div class="flex">
+            ${s.syncEnabled
+              ? `<button type="button" class="btn danger small" id="sync-disconnect">Disconnect</button>
+                 <button type="button" class="btn secondary small" id="sync-now">🔄 Sync now</button>`
+              : '<button class="btn small">☁️ Connect</button>'}
+          </div>
+          <p class="muted" id="sync-status-line" style="font-size:.78rem"></p>
+        </form>
+      </div>
+      <div class="card">
         <h3>💾 Your Data</h3>
         <p class="muted mb">Everything lives in this browser (localStorage). Export regularly to back up or move devices. Cook photos are stored separately on this device and aren't included in JSON exports.</p>
         <div class="flex">
@@ -1495,6 +1651,28 @@ function renderSettings() {
     toast('Cost defaults saved', 'good'); render();
   };
 
+  const syncLine = $('#sync-status-line');
+  if (syncLine) syncLine.textContent = syncStatusText(syncStatus());
+  $('#sync-form').onsubmit = async e => {
+    e.preventDefault();
+    const pass = new FormData(e.target).get('passphrase');
+    try {
+      const result = await enableSync(pass);
+      toast(result === 'adopted' ? 'Connected — journal pulled from the cloud ☁️' : 'Connected — journal pushed to the cloud ☁️', 'good');
+      render();
+    } catch (err) {
+      if (err.message !== 'unconfigured') toast(err.message, 'bad');
+      render();
+    }
+  };
+  const disc = $('#sync-disconnect');
+  if (disc) disc.onclick = () => { disableSync(); toast('Sync disconnected'); render(); };
+  const syncNowBtn = $('#sync-now');
+  if (syncNowBtn) syncNowBtn.onclick = async () => {
+    try { const r = await pullNow(); toast(r === 'adopted' ? 'Updated from cloud ☁️' : 'Cloud is up to date ✅', 'good'); render(); }
+    catch (err) { if (err.message !== 'unconfigured') toast(err.message, 'bad'); }
+  };
+
   $('#export-btn').onclick = () => {
     const blob = new Blob([exportJson()], { type: 'application/json' });
     const a = document.createElement('a');
@@ -1525,3 +1703,16 @@ function renderSettings() {
 
 // ---------- first run ----------
 render();
+initSync(() => { toast('Journal updated from the cloud ☁️', 'good'); render(); });
+onSyncStatus(s => {
+  const el = document.getElementById('sync-status-line');
+  if (el) el.textContent = syncStatusText(s);
+});
+
+function syncStatusText(s) {
+  if (s.status === 'off') return 'Not connected.';
+  if (s.status === 'syncing') return `☁️ ${s.detail}`;
+  if (s.status === 'error') return `⚠️ Sync error: ${s.detail}`;
+  if (s.status === 'unconfigured') return '⚠️ Sync storage not set up yet — see the note below.';
+  return `✅ ${s.detail}${s.lastSyncTs ? ` · last sync ${new Date(s.lastSyncTs).toLocaleTimeString()}` : ''}`;
+}

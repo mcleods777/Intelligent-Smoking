@@ -52,6 +52,12 @@ One click renders a smoke into a polished PNG — meat, date, method and pellet 
 ### 📥 Thermometer CSV Import
 Import CSV exports from Meater, Fireboard, ThermoWorks, or any logger. The first column is time (ISO, epoch, or elapsed), and each temperature column becomes its own probe automatically.
 
+### 🌲 Pellet Tracking
+Log every bag of pellets — brand, flavor/wood, pounds, price, vendor, and your quality rating. The page shows totals (pounds purchased, spent, blended $/lb), estimated pounds on hand (purchased minus burned in your smokes), and a Brand Report Card combining your quality ratings with the crew scores of cooks that used each brand. Logged purchases feed the cost-per-serving math with your real blended $/lb, and autocomplete the pellet fields on new smokes.
+
+### ☁️ Cross-Device Sync
+Share one journal across phone, tablet, and desktop. Pick a household passphrase in Settings → Cross-Device Sync and enter the same one on every device: changes push automatically a few seconds after you make them, and devices pull on load and when you return to the tab (newest save wins). The passphrase never leaves your device — it's hashed locally into the sync key. Photos and your API key stay per-device. Requires one-time setup: in the Vercel dashboard, project → Storage → Create Database → Redis (Upstash), connect it, redeploy.
+
 ### 🏪 Vendor Economics
 Track every store and butcher. Per vendor the app computes purchase count, total spent, average $/lb, average meat quality, and a **Value Index** (quality ÷ $/lb) so you can shop where quality per dollar is best.
 
@@ -94,5 +100,7 @@ js/charts.js    dependency-free canvas temperature chart (multi-probe + action m
 js/ai.js        local analytics engine + optional Claude API integration
 js/photos.js    photo journal storage (IndexedDB) + compression
 js/share.js     shareable cook-card renderer (canvas -> PNG)
+js/sync.js      cross-device sync client (passphrase-keyed, newest-wins)
+api/sync.js     Vercel serverless sync endpoint (Redis-backed)
 assets/cuts/    cut photos (Wikimedia Commons, see ATTRIBUTIONS.md)
 ```
